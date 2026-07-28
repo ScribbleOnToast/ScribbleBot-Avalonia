@@ -1,0 +1,22 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Base ScrollBar Style -->
+    <Style Selector="ScrollBar">
+        <Setter Property="AllowAutoHide" Value="True" />
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+
+    <!-- Vertical ScrollBar Thumb Styling -->
+    <Style Selector="ScrollBar:vertical /template/ Thumb">
+        <Setter Property="Background" Value="{DynamicResource SecondaryControlBackgroundBrush}" />
+        <Setter Property="Width" Value="8" />
+        <Setter Property="CornerRadius" Value="4" />
+    </Style>
+
+    <!-- Hover State for Thumb -->
+    <Style Selector="ScrollBar:vertical /template/ Thumb:pointerover">
+        <Setter Property="Background" Value="{DynamicResource ControlHoverBackgroundBrush}" />
+    </Style>
+
+</Styles>

@@ -1,0 +1,32 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+	<!-- Window & Panel Backgrounds -->
+	<SolidColorBrush x:Key="WindowBackgroundBrush" Color="#1E1E1E"/>
+	<SolidColorBrush x:Key="SidebarBackgroundBrush" Color="#252526"/>
+	<SolidColorBrush x:Key="PanelBackgroundBrush" Color="#252526"/>
+	<SolidColorBrush x:Key="TextBoxBackgroundBrush" Color="#252526"/>
+
+	<!-- Control & Button Backgrounds -->
+	<SolidColorBrush x:Key="ControlBackgroundBrush" Color="#2D2D30"/>
+	<SolidColorBrush x:Key="SecondaryControlBackgroundBrush" Color="#333337"/>
+	<SolidColorBrush x:Key="ControlHoverBackgroundBrush" Color="#3E3E42"/>
+	<SolidColorBrush x:Key="ButtonBackgroundBrush" Color="#007ACC"/>
+
+	<!-- Foreground / Text Colors -->
+	<SolidColorBrush x:Key="PrimaryTextBrush" Color="#F1F1F1"/>
+	<SolidColorBrush x:Key="SecondaryTextBrush" Color="#888888"/>
+	<SolidColorBrush x:Key="ButtonForegroundBrush" Color="#FFFFFF"/>
+	<SolidColorBrush x:Key="DisabledTextBrush" Color="#656565"/>
+
+	<!-- Borders & Dividers -->
+	<SolidColorBrush x:Key="SidebarBorderBrush" Color="#3F3F46"/>
+	<SolidColorBrush x:Key="BorderBrush" Color="#3F3F46"/>
+	<SolidColorBrush x:Key="TextBoxBorderBrush" Color="#3F3F46"/>
+
+	<!-- Accents & Actions -->
+	<SolidColorBrush x:Key="AccentBrush" Color="#007ACC"/>
+	<SolidColorBrush x:Key="AccentHoverBrush" Color="#1C97EA"/>
+	<SolidColorBrush x:Key="DangerBrush" Color="#F44336"/>
+
+</ResourceDictionary>

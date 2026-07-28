@@ -1,0 +1,48 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+			 xmlns:vm="using:ScribbleBot.ViewModels"
+		     x:DataType="vm:MainViewModel"
+			 xmlns:views="using:ScribbleBot.UI.Views"
+             x:Class="ScribbleBot.UI.Views.SettingsSidebarView"
+			 mc:Ignorable="d"
+             d:DesignHeight="450" d:DesignWidth="260">	
+    <Grid>
+        <Grid.RowDefinitions>
+            <!-- Header -->
+            <RowDefinition Height="Auto"/>
+            <!-- Settings Body -->
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header with Back Button -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,15">
+            <Button Command="{Binding ShowThreadsCommand}" 
+                    Content="←" 
+                    FontSize="18" 
+                    Background="Transparent" 
+                    Foreground="#F1F1F1" 
+                    BorderThickness="0" 
+                    Cursor="Hand" 
+                    Margin="0,0,10,0"/>
+            <TextBlock Text="Settings" 
+                       FontSize="16" 
+                       FontWeight="Bold" 
+                       Foreground="#F1F1F1" 
+                       VerticalAlignment="Center"/>
+        </StackPanel>
+
+        <!-- Options -->
+        <StackPanel Grid.Row="1">
+            <TextBlock Text="Display Mode" 
+                       Foreground="#888888" 
+                       Margin="0,0,0,6"/>
+
+            <CheckBox Content="Dark Mode" 
+                      IsChecked="{Binding IsDarkMode, Mode=TwoWay}" 
+                      Foreground="#F1F1F1" 
+                      FontSize="14"/>
+        </StackPanel>
+    </Grid>
+</UserControl>

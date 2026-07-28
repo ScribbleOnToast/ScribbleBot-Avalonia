@@ -1,0 +1,134 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="ScribbleBot.UI.Views.ThreadsSidebarView"
+             xmlns:vm="using:ScribbleBot.ViewModels"
+             x:Name="RootControl"
+             x:DataType="vm:MainViewModel">
+
+	<UserControl.Styles>
+		<!-- Delete Button Hidden / Non-interactive by default -->
+		<Style Selector="Button.DeleteButton">
+			<Setter Property="Opacity" Value="0"/>
+			<Setter Property="IsHitTestVisible" Value="False"/>
+			<Setter Property="Transitions">
+				<Transitions>
+					<DoubleTransition Property="Opacity" Duration="0:0:0.15"/>
+				</Transitions>
+			</Setter>
+		</Style>
+
+		<!-- Reveal Delete Button on Row Hover -->
+		<Style Selector="Border.ThreadRowContainer:pointerover Button.DeleteButton">
+			<Setter Property="Opacity" Value="1"/>
+			<Setter Property="IsHitTestVisible" Value="True"/>
+		</Style>
+	</UserControl.Styles>
+
+	<Grid>
+		<Grid.RowDefinitions>
+			<RowDefinition Height="Auto"/>
+			<RowDefinition Height="Auto"/>
+			<RowDefinition Height="Auto"/>
+			<RowDefinition Height="Auto"/>
+			<RowDefinition Height="*"/>
+		</Grid.RowDefinitions>
+
+		<!-- + New Thread Button -->
+		<Button Grid.Row="0"
+                Content="+ New Thread"
+                Command="{Binding CreateNewThreadCommand}"
+                Padding="10,8"
+                Margin="0,0,0,8"
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Center"
+                Background="{DynamicResource AccentBrush}"
+                Foreground="{DynamicResource ButtonForegroundBrush}"
+                FontWeight="SemiBold"
+                BorderThickness="0"
+                Cursor="Hand"/>
+
+		<!-- Search Chats Button -->
+		<Button Grid.Row="1"
+                Content="🔍 Search Chats"
+                Command="{Binding SearchChatsCommand}"
+                Padding="10,8"
+                Margin="0,0,0,10"
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Left"
+                Background="{DynamicResource SecondaryControlBackgroundBrush}"
+                Foreground="{DynamicResource PrimaryTextBrush}"
+                BorderThickness="0"
+                Cursor="Hand"/>
+
+		<!-- Settings Button -->
+		<Button Grid.Row="2"
+                Command="{Binding SettingsCommand}"
+                Padding="10,8"
+                Margin="0,0,0,10"
+                HorizontalAlignment="Stretch"
+                Background="{DynamicResource SecondaryControlBackgroundBrush}"
+                Foreground="{DynamicResource PrimaryTextBrush}"
+                BorderThickness="0"
+                Cursor="Hand">
+			<StackPanel Orientation="Horizontal">
+				<TextBlock Text="⚙" FontSize="14" VerticalAlignment="Center" Margin="0,0,8,0"/>
+				<TextBlock Text="Settings" VerticalAlignment="Center"/>
+			</StackPanel>
+		</Button>
+
+		<!-- Divider Line -->
+		<Rectangle Grid.Row="3"
+                   Height="1"
+                   Fill="{DynamicResource SidebarBorderBrush}"
+                   Margin="0,0,0,10"/>
+
+		<!-- Thread List -->
+		<ScrollViewer Grid.Row="4" VerticalScrollBarVisibility="Auto">
+			<ItemsControl ItemsSource="{Binding State.Threads}">
+				<ItemsControl.ItemTemplate>
+					<DataTemplate>
+						<Border Classes="ThreadRowContainer"
+                                Background="Transparent"
+                                CornerRadius="4"
+                                Margin="0,0,0,4"
+                                HorizontalAlignment="Stretch">
+							<Grid Classes="ThreadRow">
+								<Grid.ColumnDefinitions>
+									<ColumnDefinition Width="*" />
+									<ColumnDefinition Width="Auto" />
+								</Grid.ColumnDefinitions>
+
+								<!-- Thread Item Button (Stretches Full Width) -->
+								<Button Grid.Column="0"
+                                        Command="{Binding #RootControl.((vm:MainViewModel)DataContext).SwitchThreadCommand}"
+                                        CommandParameter="{Binding}"
+                                        Padding="10,8"
+                                        Background="{DynamicResource ControlBackgroundBrush}"
+                                        Foreground="{DynamicResource PrimaryTextBrush}"
+                                        HorizontalAlignment="Stretch"
+                                        HorizontalContentAlignment="Left"
+                                        BorderThickness="0"
+                                        Cursor="Hand">
+									<TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis"/>
+								</Button>
+
+								<!-- Delete Button -->
+								<Button Classes="DeleteButton"
+                                        Grid.Column="1"
+                                        Command="{Binding #RootControl.((vm:MainViewModel)DataContext).DeleteThreadCommand}"
+                                        CommandParameter="{Binding}"
+                                        Content="✕"
+                                        Foreground="{DynamicResource DangerBrush}"
+                                        Background="{DynamicResource ControlBackgroundBrush}"
+                                        BorderThickness="0"
+                                        Padding="10,0"
+                                        FontWeight="Bold"
+                                        Cursor="Hand"/>
+							</Grid>
+						</Border>
+					</DataTemplate>
+				</ItemsControl.ItemTemplate>
+			</ItemsControl>
+		</ScrollViewer>
+	</Grid>
+</UserControl>

@@ -1,0 +1,229 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:ScribbleBot"
+        xmlns:localConverters="clr-namespace:ScribbleBot.UI.Converters"
+        xmlns:localBehaviors="clr-namespace:ScribbleBot.UI.Behaviors"
+        xmlns:md="clr-namespace:Markdown.Avalonia;assembly=Markdown.Avalonia"
+        xmlns:views="clr-namespace:ScribbleBot.UI.Views"
+		xmlns:vm="using:ScribbleBot.ViewModels"
+		xmlns:mvm="using:ScribbleBot.MainViewModel"
+        x:Class="ScribbleBot.MainWindow"
+		x:DataType="vm:MainViewModel"
+        mc:Ignorable="d"
+        Title="ScribbleBot Studio" Height="650" Width="900"
+        Background="{DynamicResource WindowBackgroundBrush}"
+        Foreground="{DynamicResource PrimaryTextBrush}">
+
+	<Window.Resources>
+		<localConverters:MessageStyleConverter x:Key="StyleConv"/>
+	</Window.Resources>
+
+	<!-- Window Styles for Sidebar Animation & Controls -->
+	<Window.Styles>
+		<!-- Smooth Sidebar Animation -->
+		<Style Selector="Border.Sidebar">
+			<Setter Property="Width" Value="260"/>
+			<Setter Property="Transitions">
+				<Transitions>
+					<DoubleTransition Property="Width" Duration="0:0:0.35" Easing="CubicEaseInOut"/>
+				</Transitions>
+			</Setter>
+		</Style>
+		<Style Selector="Border.Sidebar[IsVisible=False]">
+			<Setter Property="Width" Value="0"/>
+		</Style>
+
+		<!-- Button Hover Styles -->
+		<Style Selector="Button.IconButton:pointerover /template/ ContentPresenter">
+			<Setter Property="Background" Value="#3E3E42"/>
+		</Style>
+		<Style Selector="Button.PrimaryButton:pointerover /template/ ContentPresenter">
+			<Setter Property="Background" Value="#1C97EA"/>
+		</Style>
+	</Window.Styles>
+
+	<!-- Root Overlay Container -->
+	<Grid>
+		<Grid.ColumnDefinitions>
+			<!-- Column 0: Sidebar Panel -->
+			<ColumnDefinition Width="Auto" />
+			<!-- Column 1: Main Content -->
+			<ColumnDefinition Width="*" />
+		</Grid.ColumnDefinitions>
+
+		<!-- SIDEBAR PANEL (Column 0) -->
+		<Border Grid.Column="0"
+                Classes="Sidebar"
+                IsVisible="{Binding State.IsSidebarOpen}"
+                Background="{DynamicResource SidebarBackgroundBrush}"
+                BorderBrush="{DynamicResource SidebarBorderBrush}"
+                BorderThickness="0,0,1,0"
+                ClipToBounds="True"
+                Padding="12">
+
+			<Grid>
+				<!-- Threads View -->
+				<views:ThreadsSidebarView 
+					IsVisible="{Binding CurrentSidebarView, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:SidebarViewType.Threads}}"/>
+				<!-- Settings View -->
+				<!-- Note: Connect IsVisible binding to match your enum/view selector pattern -->
+				<views:SettingsSidebarView
+					IsVisible="{Binding CurrentSidebarView, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:SidebarViewType.Settings}}"/>
+			</Grid>
+		</Border>
+
+		<!-- MAIN CONTENT LAYER (Column 1) -->
+		<Grid Grid.Column="1" Margin="15">
+			<Grid.RowDefinitions>
+				<!-- Header/Status Bar -->
+				<RowDefinition Height="Auto"/>
+				<!-- Chat Message List -->
+				<RowDefinition Height="*"/>
+				<!-- User Input Area -->
+				<RowDefinition Height="Auto"/>
+			</Grid.RowDefinitions>
+
+			<!-- Status Header Bar with Menu Toggle Button -->
+			<Border Grid.Row="0"
+                    Background="{DynamicResource PanelBackgroundBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="0,0,0,1"
+                    Padding="10,8"
+                    Margin="0,0,0,10"
+                    CornerRadius="4">
+				<Grid>
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="Auto"/>
+						<ColumnDefinition Width="*"/>
+					</Grid.ColumnDefinitions>
+
+					<!-- Sidebar Toggle Button (☰) -->
+					<Button Grid.Column="0"
+                            Classes="IconButton"
+                            Content="☰"
+                            Command="{Binding ToggleSidebarCommand}"
+                            Width="32" Height="32"
+                            Margin="0,0,10,0"
+                            FontSize="15"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"
+                            Background="{DynamicResource ButtonBackgroundBrush}"
+                            Foreground="{DynamicResource ButtonForegroundBrush}"
+                            BorderThickness="0"
+                            Cursor="Hand"/>
+
+					<!-- Status Indicator -->
+					<StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+						<TextBlock Text="Status: " FontWeight="Bold" Foreground="{DynamicResource SecondaryTextBrush}"/>
+						<TextBlock Text="{Binding State.StatusMessage}" Foreground="{DynamicResource PrimaryTextBrush}" FontWeight="SemiBold"/>
+					</StackPanel>
+				</Grid>
+			</Border>
+
+			<!-- Chat History Box -->
+			<ScrollViewer x:Name="ChatScrollViewer" Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,0,0,10">
+				<ItemsControl ItemsSource="{Binding State.Messages}" Padding="0,0,12,0">
+					<ItemsControl.ItemTemplate>
+						<DataTemplate>
+							<!-- Bubble Container -->
+							<Border Margin="0,6"
+                                    Padding="12,10"
+                                    CornerRadius="8"
+                                    MaxWidth="650"
+                                    HorizontalAlignment="{Binding Role, Converter={StaticResource StyleConv}, ConverterParameter=Alignment}"
+                                    Background="{Binding Role, Converter={StaticResource StyleConv}, ConverterParameter=Background}"
+                                    BorderBrush="{Binding Role, Converter={StaticResource StyleConv}, ConverterParameter=BorderBrush}"
+                                    BorderThickness="1">
+								<StackPanel>
+									<TextBlock Text="{Binding Role, Converter={StaticResource StyleConv}, ConverterParameter=RoleText}"
+                                               Foreground="{Binding Role, Converter={StaticResource StyleConv}, ConverterParameter=RoleColor}"
+                                               FontWeight="Bold"
+                                               FontSize="11"
+                                               Margin="0,0,0,6"/>
+
+									<md:MarkdownScrollViewer Markdown="{Binding Text}"
+															 Margin="0,4,0,0"
+															 HorizontalAlignment="Stretch"/>
+								</StackPanel>
+							</Border>
+						</DataTemplate>
+					</ItemsControl.ItemTemplate>
+				</ItemsControl>
+			</ScrollViewer>
+
+			<!-- Input Area Container (Row 2) -->
+			<Grid Grid.Row="2">
+				<Grid.RowDefinitions>
+					<!-- Row 0: Attachment Chips Container -->
+					<RowDefinition Height="Auto"/>
+					<!-- Row 1: Input Box and Send Button -->
+					<RowDefinition Height="Auto"/>
+				</Grid.RowDefinitions>
+
+				<!-- Attachment Chips Row -->
+				<ItemsControl Grid.Row="0" ItemsSource="{Binding AttachedFiles}" Margin="0,0,0,8">
+					<ItemsControl.ItemsPanel>
+						<ItemsPanelTemplate>
+							<WrapPanel Orientation="Horizontal"/>
+						</ItemsPanelTemplate>
+					</ItemsControl.ItemsPanel>
+					<ItemsControl.ItemTemplate>
+						<DataTemplate>
+							<Border Background="#333" CornerRadius="12" Padding="8,4" Margin="0,0,6,6">
+								<StackPanel Orientation="Horizontal">
+									<TextBlock Text="📎 " FontSize="11" Foreground="#AAA"/>
+									<TextBlock Text="{Binding FileName}" Foreground="White" FontSize="12" Margin="0,0,6,0"/>
+									<Button Content="✕"
+                                            Command="{Binding $parent[Window].DataContext.RemoveAttachmentCommand}"
+                                            CommandParameter="{Binding}"
+                                            Background="Transparent" Foreground="#888" BorderThickness="0" Cursor="Hand"/>
+								</StackPanel>
+							</Border>
+						</DataTemplate>
+					</ItemsControl.ItemTemplate>
+				</ItemsControl>
+
+				<!-- Text Input Row -->
+				<Grid Grid.Row="1">
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="*"/>
+						<ColumnDefinition Width="Auto"/>
+					</Grid.ColumnDefinitions>
+
+					<TextBox Name="InputTextBox"
+                             Grid.Column="0"
+                             Text="{Binding UserInput, Mode=TwoWay}"
+                             Padding="8,6"
+                             FontSize="14"
+                             Background="{DynamicResource TextBoxBackgroundBrush}"
+                             Foreground="{DynamicResource PrimaryTextBrush}"
+                             BorderBrush="{DynamicResource TextBoxBorderBrush}"
+                             Margin="0,0,10,0"
+                             AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             VerticalContentAlignment="Top"
+                             MinHeight="38"
+                             MaxHeight="120"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto"
+                             DragDrop.AllowDrop="True">
+						<TextBox.KeyBindings>
+							<KeyBinding Gesture="Enter" Command="{Binding SendMessageCommand}"/>
+						</TextBox.KeyBindings>
+					</TextBox>
+
+					<Button Grid.Column="1"
+                            Classes="PrimaryButton"
+                            Content="Send"
+                            Command="{Binding SendMessageCommand}"
+                            Background="{DynamicResource ButtonBackgroundBrush}"
+                            Foreground="{DynamicResource ButtonForegroundBrush}"
+                            BorderThickness="0"
+                            Padding="20,8" Cursor="Hand"
+                            VerticalAlignment="Bottom" Height="38"/>
+				</Grid>
+			</Grid>
+		</Grid>
+	</Grid>
+</Window>
