@@ -6,9 +6,11 @@ using ScribbleBot.Models;
 using ScribbleBot.Services;
 using System.Collections.ObjectModel;
 using System.Text;
+using Microsoft.AspNetCore.StaticFiles;
 using System.IO;
 using UglyToad.PdfPig;
 using Microsoft.Extensions.Logging;
+using Avalonia.Platform.Storage;
 
 namespace ScribbleBot.ViewModels
 {
@@ -110,7 +112,6 @@ namespace ScribbleBot.ViewModels
         private async Task SendMessageAsync()
         {
             var contents = new List<AIContent>();
-            var textBuilder = new StringBuilder();
 
             if (!string.IsNullOrWhiteSpace(UserInput))
             {
@@ -119,39 +120,30 @@ namespace ScribbleBot.ViewModels
 
             foreach (var file in AttachedFiles)
             {
-                if (file.Type == FileType.Image)
+                if (File.Exists(file.FilePath))
                 {
-                    if (File.Exists(file.FilePath))
+                    var dataContent = new DataContent(file.Bytes, file.MimeType)
                     {
-                        byte[] imageBytes = await File.ReadAllBytesAsync(file.FilePath);
-                        contents.Add(new DataContent(imageBytes, "image/png"));
-                    }
+                        AdditionalProperties = new() { ["fileName"] = file.FileName }
+                    };
+                    contents.Add(dataContent);                                     
                 }
-                else if (!string.IsNullOrWhiteSpace(file.TextContent))
-                {
-                    // For Code, Text, PDFs: Append raw text into the primary text context
-                    textBuilder.AppendLine($"\n\n--- File: {file.FileName} ---");
-                    textBuilder.AppendLine("```");
-                    textBuilder.AppendLine(file.TextContent);
-                    textBuilder.AppendLine("```");
-                }
-            }
-
-            if (textBuilder.Length > 0)
-            {
-                contents.Insert(0, new TextContent(textBuilder.ToString().Trim()));
-            }
+            }            
 
             // Clear UI input state
             UserInput = string.Empty;
             AttachedFiles.Clear();
-            var richMessage = new ChatMessage(ChatRole.User, contents);
-            // Pass rich message down to SupervisorAgent
-            await _supervisorAgent.HandleUserRichMessageAsync(richMessage);
 
-            // Reset UI State
-            UserInput = string.Empty;
-            AttachedFiles.Clear();
+            // Pass rich message down to SupervisorAgent
+            await _supervisorAgent.HandleUserRichMessageAsync(new ChatMessage(ChatRole.User, contents));
+        }
+
+        public async Task AttachFiles(IStorageItem[]? files)
+        {
+            if (files != null && files.Length > 0)
+            {
+                foreach (var file in files) AttachedFiles.Add(await _fileIngestionService.ProcessFileAsync(file.TryGetLocalPath()));
+            }
         }
 
         /// <summary>

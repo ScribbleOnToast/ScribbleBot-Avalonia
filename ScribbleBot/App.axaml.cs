@@ -26,14 +26,16 @@ public partial class App : Application
 {
     private IHost? _host;
 
-    public static IServiceProvider Services => ((App)Current)._host!.Services;
+    public static IServiceProvider Services =>
+        ((App)Current)._host?.Services
+        ?? throw new InvalidOperationException("Host services are not initialized yet.");
 
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
     }
 
-    public override async void OnFrameworkInitializationCompleted()
+    public override void OnFrameworkInitializationCompleted()
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
@@ -61,6 +63,7 @@ public partial class App : Application
             var builder = Host.CreateApplicationBuilder(desktop.Args);
 
             builder.Services.AddSerilog();
+
             builder.Services.AddOptions<OllamaSettings>()
                 .BindConfiguration("OllamaSettings")
                 .ValidateOnStart();
@@ -68,21 +71,21 @@ public partial class App : Application
             builder.Services.AddOptions<GoogleSearchSettings>()
                 .BindConfiguration("GoogleSearchSettings");
 
-            builder.Services.AddOptions<QdrantSettings>()
-                .BindConfiguration("QdrantSettings");
-
-            // Ollama IChatClient pointing to Gemma 4
+            // Ollama IChatClient
             builder.Services.AddSingleton<IChatClient>(sp =>
             {
                 var ollamaOpts = sp.GetRequiredService<IOptions<OllamaSettings>>().Value;
                 return new OllamaApiClient(ollamaOpts.Endpoint, ollamaOpts.ModelId);
             });
 
-            // Application State & Infrastructure Services
+            // Application State & Services
             builder.Services.AddSingleton<AgentState>();
             builder.Services.AddSingleton<DatabaseService>();
+
+            // Register HttpClient typed client correctly (DO NOT add AddSingleton after this)
             builder.Services.AddHttpClient<GoogleSearchService>();
-            builder.Services.AddSingleton<GoogleSearchService>();
+            builder.Services.AddHttpClient("WarmupClient");
+
             builder.Services.AddSingleton<CodeIndexerService>();
             builder.Services.AddSingleton<CodeQueryService>();
             builder.Services.AddSingleton<SupervisorAgent>();
@@ -95,7 +98,7 @@ public partial class App : Application
             builder.Services.AddSingleton<IWorkerAgent, ChatWorker>();
             builder.Services.AddSingleton<IWorkerAgent, CodeWorker>();
 
-            // ViewModel & MainWindow
+            // ViewModels & Views
             builder.Services.AddTransient<MainViewModel>();
             builder.Services.AddSingleton<MainWindow>(sp => new MainWindow
             {
@@ -103,16 +106,19 @@ public partial class App : Application
             });
 
             _host = builder.Build();
-            await _host.StartAsync();
 
-            // 3. Attach Shutdown Handler (Replaces WPF OnExit)
+            // Attach Teardown Handler
             desktop.Exit += OnExit;
 
-            // 4. Assign Main Window
+            // Assign Main Window first
             desktop.MainWindow = _host.Services.GetRequiredService<MainWindow>();
 
-            // 5. Trigger Async Model Warmup
-            _ = WarmupModelAsync();
+            // Start host and warmup asynchronously in background task without blocking UI thread
+            Task.Run(async () =>
+            {
+                await _host.StartAsync();
+                await WarmupModelAsync();
+            });
         }
 
         base.OnFrameworkInitializationCompleted();
@@ -123,7 +129,7 @@ public partial class App : Application
         var state = Services.GetRequiredService<AgentState>();
         var chatClient = Services.GetRequiredService<IChatClient>();
         var settings = Services.GetRequiredService<IOptions<OllamaSettings>>().Value;
-        var httpClient = Services.GetRequiredService<HttpClient>();
+        var httpFactory = Services.GetRequiredService<IHttpClientFactory>();
         var logger = Services.GetRequiredService<ILogger<App>>();
 
         try
@@ -132,10 +138,14 @@ public partial class App : Application
             state.StatusMessage = "Verifying LLM connection...";
             logger.LogInformation("Initiating LLM health check at {Endpoint}", settings.Endpoint);
 
-            var baseUri = new Uri(settings.Endpoint).GetLeftPart(UriPartial.Authority);
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            var response = await httpClient.GetAsync(baseUri, cts.Token);
-            response.EnsureSuccessStatusCode();
+            if (Uri.TryCreate(settings.Endpoint, UriKind.Absolute, out var parsedUri))
+            {
+                var client = httpFactory.CreateClient("WarmupClient");
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                var response = await client.GetAsync(parsedUri.GetLeftPart(UriPartial.Authority), cts.Token);
+                response.EnsureSuccessStatusCode();
+            }
+
             logger.LogInformation("LLM host reachable. Triggering model warmup for '{ModelId}'...", settings.ModelId);
 
             var options = new ChatOptions
@@ -150,20 +160,20 @@ public partial class App : Application
             logger.LogInformation("Model '{ModelId}' warmed up successfully.", settings.ModelId);
             state.StatusMessage = "Ready";
         }
-        catch (HttpRequestException hEX)
+        catch (HttpRequestException hEx)
         {
-            logger.LogError(hEX, "Warmup failed: Unable to reach Ollama {Endpoint}.", settings.Endpoint);
-            state.StatusMessage = $"Warmup failed: Unable to reach Ollama server.";
+            logger.LogError(hEx, "Warmup failed: Unable to reach Ollama at {Endpoint}.", settings.Endpoint);
+            state.StatusMessage = "Warmup failed: Unable to reach Ollama server.";
         }
-        catch (TaskCanceledException tEX)
+        catch (TaskCanceledException tEx)
         {
-            logger.LogError(tEX, "Warmup failed: Ollama connection timed out at endpoint {Endpoint} (5s).", settings.Endpoint);
+            logger.LogError(tEx, "Warmup failed: Ollama connection timed out (5s).");
             state.StatusMessage = "Ollama connection timed out after 5 seconds.";
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Warmup failed: An unexpected error occurred during model warmup.");
-            state.StatusMessage = $"Warmup failed: An unexpected error occurred.";
+            logger.LogError(ex, "Warmup failed: Unexpected error during model warmup.");
+            state.StatusMessage = "Warmup failed: An unexpected error occurred.";
         }
         finally
         {
@@ -173,12 +183,14 @@ public partial class App : Application
 
     private void OnExit(object? sender, ControlledApplicationLifetimeExitEventArgs e)
     {
+        using var shutdownCts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+
         try
         {
             var chatClient = Services.GetService<IChatClient>();
-            var settings = Services.GetRequiredService<IOptions<OllamaSettings>>().Value;
+            var settings = Services.GetService<IOptions<OllamaSettings>>()?.Value;
 
-            if (chatClient != null && settings.UnloadOnExit)
+            if (chatClient != null && settings is { UnloadOnExit: true })
             {
                 var options = new ChatOptions
                 {
@@ -187,18 +199,34 @@ public partial class App : Application
                         ["keep_alive"] = "0s"
                     }
                 };
-                chatClient.GetResponseAsync([new ChatMessage(ChatRole.User, " ")], options).GetAwaiter().GetResult();
+
+                // Pass cancellation token to avoid hanging indefinitely on exit
+                chatClient.GetResponseAsync([new ChatMessage(ChatRole.User, " ")], options, shutdownCts.Token)
+                          .GetAwaiter()
+                          .GetResult();
             }
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Warning(ex, "Model unload on exit failed or timed out.");
         }
 
         if (_host is not null)
         {
-            _host.StopAsync().GetAwaiter().GetResult();
-            _host.Dispose();
+            try
+            {
+                _host.StopAsync(TimeSpan.FromSeconds(2)).GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Host shutdown encountered an error.");
+            }
+            finally
+            {
+                _host.Dispose();
+            }
         }
+
         Log.CloseAndFlush();
     }
 }

@@ -1,4 +1,6 @@
-﻿namespace ScribbleBot.Services
+﻿using Microsoft.Extensions.AI;
+
+namespace ScribbleBot.Services
 {
     /// <summary>
     /// Lightweight metadata describing an agent's capability for routing purposes.
@@ -11,6 +13,6 @@
         /// Evaluates a user message against available agent capabilities and returns
         /// the target agent name.
         /// </summary>
-        Task<string> DetermineBestAgentAsync(string userMessage, IEnumerable<AgentDescriptor> availableAgents);
+        Task<string> DetermineBestAgentAsync(ChatMessage userMessage, IEnumerable<AgentDescriptor> availableAgents);
     }
 }

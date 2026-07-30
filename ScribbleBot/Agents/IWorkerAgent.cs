@@ -15,5 +15,7 @@ namespace ScribbleBot.Agents
 
         Task<ChatResponse?> ProcessAsync(IEnumerable<ChatMessage> history, string systemSummary);
 
+        Task LogMessage(ChatMessage message);
+
     }
 }

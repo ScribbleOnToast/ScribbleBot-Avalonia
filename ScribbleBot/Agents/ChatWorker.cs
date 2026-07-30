@@ -72,5 +72,10 @@ namespace ScribbleBot.Agents
             }
             return null;
         }
+
+        public async Task LogMessage(ChatMessage message)
+        {
+            //Not implemented yet.
+        }
     }
 }

@@ -86,6 +86,14 @@ public class CodeIndexerService
             }
         }
 
+        foreach (var edge in edges)
+        {
+            if (symbolMap.TryGetValue(edge.TargetId, out var resolvedTargetId))
+            {
+                edge.TargetId = resolvedTargetId;
+            }
+        }
+
         // 2. Persist extracted nodes and relationships to SQLite
         try
         {

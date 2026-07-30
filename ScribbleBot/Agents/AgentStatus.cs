@@ -55,9 +55,10 @@ public partial class AgentState : ObservableObject
 
     /// <summary>
     /// Indicates whether the application's navigation sidebar is expanded.
+    /// Defaults to open
     /// </summary>
     [ObservableProperty]
-    private bool _isSidebarOpen;
+    private bool _isSidebarOpen = true;
 
     /// <summary>
     /// A persistent collection of all messages processed across the current thread's complete history.

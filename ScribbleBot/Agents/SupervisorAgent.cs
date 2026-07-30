@@ -6,6 +6,7 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using ScribbleBot.Models;
 using ScribbleBot.Services;
+using System.Text;
 
 namespace ScribbleBot.Agents
 {
@@ -125,11 +126,11 @@ namespace ScribbleBot.Agents
         /// Resolves the best worker agent for the given user request.
         /// Defaults to "ChatWorker" if no specialized agent matches.
         /// </summary>
-        private async Task<IWorkerAgent> PickAgentForMessageAsync(string userMessage)
+        private async Task<IWorkerAgent> PickAgentForMessageAsync(ChatMessage message)
         {
-            _logger.LogInformation("Selecting agent for message: {Message}", userMessage);
+            _logger.LogInformation("Selecting agent for message: {Message}", message.Text);
             var descriptors = _agents.Values.Select(a => new AgentDescriptor(a.Name, a.Description));
-            string targetAgentName = await _router.DetermineBestAgentAsync(userMessage, descriptors);
+            string targetAgentName = await _router.DetermineBestAgentAsync(message, descriptors);
 
             if (_agents.TryGetValue(targetAgentName, out var agent))
             {
@@ -213,10 +214,9 @@ namespace ScribbleBot.Agents
             if (!userMessage.Contents.Any() || _state.CurrentThread == null || _state.IsBusy) return;
             _state.IsBusy = true;
 
-            var now = DateTime.Now;
-
             _state.Messages.Add(userMessage);
             _state.ActiveMessages.Add(userMessage);
+
             await _dbService.AddMessageAsync(_state.CurrentThread.Id,
                 new ChatMessageEntity
                 {
@@ -228,7 +228,11 @@ namespace ScribbleBot.Agents
 
             if (_state.ActiveMessages.Count == 1 && _state.CurrentThread.Title == "New Conversation")
             {
-                _state.CurrentThread.Title = userMessage.Text.Length > 25 ? userMessage.Text[..25] + "..." : userMessage.Text;
+                string titlePrompt = !string.IsNullOrWhiteSpace(userMessage.Text)
+                    ? userMessage.Text
+                    : "Document Conversation";
+
+                _state.CurrentThread.Title = titlePrompt.Length > 25 ? titlePrompt[..25] + "..." : titlePrompt;
                 _state.CurrentThread.LastUpdatedAt = DateTime.Now;
                 await _dbService.SaveThreadAsync(_state.CurrentThread);
             }
@@ -236,16 +240,60 @@ namespace ScribbleBot.Agents
             try
             {
                 _state.StatusMessage = "Supervisor: Routing request...";
-                var worker = await PickAgentForMessageAsync(userMessage.Text);
-                _state.StatusMessage = $"{worker.Name}: Processing..."; 
+
+                var agentPayloadContents = new List<AIContent>();
+                var textPromptBuilder = new StringBuilder();
+
+                foreach (var content in userMessage.Contents)
+                {
+                    if (content is TextContent textContent)
+                    {
+                        textPromptBuilder.AppendLine(textContent.Text);
+                    }
+                    else if (content is DataContent dataContent)
+                    {
+                        if (dataContent.MediaType.StartsWith("image/"))
+                        {
+                            // Pass images directly
+                            agentPayloadContents.Add(dataContent);
+                        }
+                        else
+                        {
+                            // Unpack extracted PDF / Text File bytes into text prompt ONLY for the LLM
+                            string fileName = dataContent.AdditionalProperties?.TryGetValue("fileName", out var name) == true
+                                ? name?.ToString() ?? "file.txt"
+                                : "file.txt";
+
+                            string extractedText = Encoding.UTF8.GetString(dataContent.Data.ToArray());
+
+                            textPromptBuilder.AppendLine($"\n\n[ATTACHMENT: {fileName}]");
+                            textPromptBuilder.AppendLine("```");
+                            textPromptBuilder.AppendLine(extractedText);
+                            textPromptBuilder.AppendLine("```");
+                            textPromptBuilder.AppendLine("[/ATTACHMENT]");
+                        }
+                    }
+                }
+                string fullPromptText = textPromptBuilder.ToString().Trim();
+                agentPayloadContents.Insert(0, new TextContent(fullPromptText));
+
+                var worker = await PickAgentForMessageAsync(userMessage);
+                _state.StatusMessage = $"{worker.Name}: Processing...";
+
+                var transientHistory = new List<ChatMessage>(_state.Messages);
+                transientHistory[transientHistory.Count - 1] = new ChatMessage(ChatRole.User, agentPayloadContents);
+
                 string summary = _state.CurrentThread.SystemSummary ?? string.Empty;
 
                 var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-                var botResponse = await worker.ProcessAsync(_state.Messages, summary);
+                var botResponse = await worker.ProcessAsync(transientHistory, summary);
                 stopwatch.Stop();
                 _logger.LogInformation("Worker {WorkerName} completed request in {ElapsedMs}ms", worker.Name, stopwatch.ElapsedMilliseconds);
-                _state.Messages.Add(botResponse.Messages.Last());
-                _state.ActiveMessages.Add(botResponse.Messages.Last());
+
+                var assistantResponse = botResponse.Messages.Last();
+                _state.Messages.Add(assistantResponse);
+                _state.ActiveMessages.Add(assistantResponse);
+
                 await _dbService.AddMessageAsync(_state.CurrentThread.Id,
                     new ChatMessageEntity
                     {

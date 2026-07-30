@@ -31,30 +31,26 @@ public partial class MainWindow : Window
 
     private void OnPreviewDragOver(object? sender, DragEventArgs e)
     {
-        if (e.DataTransfer.Contains(DataFormat.File))
+        //user dropped a file
+        if (e.DataTransfer.Contains(DataFormat.File) || e.DataTransfer.Contains(DataFormat.Text))
         {
             e.DragEffects = DragDropEffects.Copy;
         }
-        else
-        {
+        else {
             e.DragEffects = DragDropEffects.None;
         }
     }
 
     private async void OnTextBoxDrop(object? sender, DragEventArgs e)
     {
-        if (!e.DataTransfer.Contains(DataFormat.File)) return;
-
-        var files = e.DataTransfer.TryGetFiles();
         var vm = DataContext as MainViewModel;
-        if (vm == null || files == null) return;
-
-        foreach (var file in files)
+        if (e.DataTransfer.Contains(DataFormat.File))
         {
-            string localPath = file.Path.LocalPath;
-            // Offload parsing to ingestion service
-            var attachment = await vm._fileIngestionService.ProcessFileAsync(localPath);
-            vm.AttachedFiles.Add(attachment);
+            if (vm != null && e != null) await vm.AttachFiles(e.DataTransfer.TryGetFiles());
+        }
+        else if(e.DataTransfer.Contains(DataFormat.Text))
+        {
+            if (vm != null && e != null) vm.UserInput += e.DataTransfer.TryGetText();
         }
     }
 }

@@ -60,18 +60,27 @@ public class CodeWorker : IWorkerAgent
                 AIFunctionFactory.Create(
                     (string symbolIdentifier) => _toolDispatcher.DispatchAsync("get_symbol_relationships", JsonSerializer.Serialize(new { symbolIdentifier })),
                     "get_symbol_relationships",
-                    "Retrieves call graphs, interface implementations, and dependencies for a target symbol.")
+                    "Retrieves call graphs, interface implementations, and dependencies for a target symbol."), 
+
+                AIFunctionFactory.Create(
+                    () => _toolDispatcher.DispatchAsync("list_indexed_projects",  "{}"),
+                    "list_indexed_projects",
+                    "Retrieve a list of index projects by name"
+                    )
             }
         };
 
         var iterationTimeout = DateTime.Now.AddMinutes(5);
-        while (iterationTimeout > DateTime.Now)
+        int turnIterator = 0;
+        await LogMessage(history.Last());
+        while (true)//iterationTimeout > DateTime.Now)
         {
+            turnIterator++;
+            _logger.LogInformation("Turn {turn}", turnIterator);
             var response = await _chatClient.GetResponseAsync(compactedPayload, options);
             var responseMessage = response.Messages[0];
-            var functionCalls = responseMessage.Contents.OfType<FunctionCallContent>().ToList();
-            var reasoning = responseMessage.Contents.OfType<TextReasoningContent>().ToList();
-            reasoning.ForEach(x => _logger.LogInformation(x.ToString()));
+            await LogMessage(responseMessage);
+            var functionCalls = responseMessage.Contents.OfType<FunctionCallContent>().ToList(); 
             if (functionCalls.Any())
             {
                 compactedPayload.Add(responseMessage);
@@ -84,6 +93,7 @@ public class CodeWorker : IWorkerAgent
                     {
                         new FunctionResultContent(call.CallId, toolResult)
                     }));
+                    await LogMessage(compactedPayload.Last());
                 }
                 continue;
             }
@@ -92,5 +102,54 @@ public class CodeWorker : IWorkerAgent
         }
 
         return null;
+    }
+
+    public async Task LogMessage(ChatMessage message)
+    {
+        _logger.LogInformation("=== [CHAT MESSAGE: {Role}] ===", message.Role);
+
+        foreach (var content in message.Contents)
+        {
+            switch (content)
+            {
+                case TextReasoningContent reasoning:
+                    // Captures internal thought process / reasoning chain (<thought> tags)
+                    _logger.LogInformation("[REASONINGCHAIN]\n{Text}", reasoning.Text);
+                    break;
+
+                case TextContent text:
+                    // Standard assistant response text
+                    _logger.LogInformation("[TEXT RESPONSE]\n{Text}", text.Text);
+                    break;
+
+                case FunctionCallContent functionCall:
+                    // The model requesting a tool/function execution
+                    string argsJson = JsonSerializer.Serialize(functionCall.Arguments);
+                    _logger.LogInformation(
+                        "[FUNCTION CALL] CallId: {CallId} | Name: {Name} | Arguments: {Args}",
+                        functionCall.CallId,
+                        functionCall.Name,
+                        argsJson);
+                    break;
+
+                case FunctionResultContent functionResult:
+                    // The output returned from ToolDispatcher back to the model
+                    string resultText = functionResult.Result?.ToString() ?? "null";
+                    _logger.LogInformation(
+                        "[FUNCTION RESULT] CallId: {CallId} | Output: {Result}",
+                        functionResult.CallId,
+                        resultText);
+                    break;
+
+                case DataContent data:
+                    // Binary/Media content (e.g. images, extracted files)
+                    _logger.LogInformation("[DATA CONTENT] MediaType: {MimeType} | Bytes: {Count}", data.MediaType, data.Data.Length);
+                    break;
+
+                default:
+                    _logger.LogInformation("[OTHER CONTENT] Type: {Type}", content.GetType().Name);
+                    break;
+            }
+        }
     }
 }
