@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Avalonia" Version="12.1.0" />
+    <PackageReference Include="Avalonia" Version="12.1.1" />
 	<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="HtmlAgilityPack" Version="1.13.0-beta1" />
     <PackageReference Include="Markdown.Avalonia" Version="12.0.0-a3" />
@@ -18,21 +18,21 @@
 	<PackageReference Include="Microsoft.Extensions.AI" Version="10.8.1" />
 	<PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.10" />
 	<PackageReference Include="Microsoft.Extensions.Http" Version="11.0.0-preview.6.26359.118" />
-	<PackageReference Include="Avalonia.Desktop" Version="12.1.0" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.0" />
-    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.0" />
+	<PackageReference Include="Avalonia.Desktop" Version="12.1.1" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.1" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.1" />
     <PackageReference Include="AvaloniaUI.DiagnosticsSupport" Version="2.2.3">
       <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
       <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
     </PackageReference>
 	<PackageReference Include="PdfPig" Version="0.1.16-alpha-20260717-5ee5c" />
-	<PackageReference Include="Microsoft.Extensions.AI" Version="10.8.1" />
+	<PackageReference Include="Microsoft.Extensions.AI" Version="10.8.3" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="11.0.0-preview.6.26359.118" />
     <PackageReference Include="OllamaSharp" Version="5.4.30" />
 	<PackageReference Include="Serilog.Extensions.Hosting" Version="10.0.0" />
 	<PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
 	<PackageReference Include="Serilog.Sinks.File" Version="8.0.0-nblumhardt-02322" />
-	<PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.4" />
+	<PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />
 	<PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.53.3" />
   </ItemGroup>
 
