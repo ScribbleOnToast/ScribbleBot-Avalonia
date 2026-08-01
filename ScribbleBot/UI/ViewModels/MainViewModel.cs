@@ -1,14 +1,11 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.AI;
 using ScribbleBot.Agents;
 using ScribbleBot.Models;
 using ScribbleBot.Services;
 using System.Collections.ObjectModel;
-using System.Text;
-using Microsoft.AspNetCore.StaticFiles;
 using System.IO;
-using UglyToad.PdfPig;
 using Microsoft.Extensions.Logging;
 using Avalonia.Platform.Storage;
 
@@ -152,7 +149,6 @@ namespace ScribbleBot.ViewModels
         [RelayCommand]
         private void Settings()
         {
-            _logger.LogInformation("ding");
             CurrentSidebarView = SidebarViewType.Settings;
         }
 

@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using UglyToad.PdfPig;
 using UglyToad.PdfPig.DocumentLayoutAnalysis.TextExtractor;
 using System.Text;
@@ -75,11 +75,6 @@ namespace ScribbleBot.Services
             }
         }
 
-        private async Task<string> ReadAsBase64Async(string path)
-        {
-            byte[] bytes = await File.ReadAllBytesAsync(path);
-            return Convert.ToBase64String(bytes);
-        }
     }
 
     public class FileClassificationService

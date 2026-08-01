@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace ScribbleBot.Settings
 {
@@ -28,12 +28,4 @@ namespace ScribbleBot.Settings
         public string SearchEngineId { get; set; } = string.Empty;
     }
 
-    public class QdrantSettings
-    {
-        // The host for the Qdrant vector database
-        public string Host { get; set; } = "localhost";
-
-        // The port for the Qdrant vector database
-        public int Port { get; set; } = 6334;
-    }
 }
