@@ -5,6 +5,7 @@ using Avalonia.Media;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using ScribbleBot.Models;
+using ScribbleBot.Serializers;
 using ScribbleBot.Services;
 using System.Text;
 

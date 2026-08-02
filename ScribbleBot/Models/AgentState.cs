@@ -3,10 +3,10 @@ using Microsoft.Extensions.AI;
 using ScribbleBot.Models;
 using System.Collections.ObjectModel;
 
-namespace ScribbleBot.Agents;
+namespace ScribbleBot.Models;
 
 /// <summary>
-/// Represents the runtime state of the AI agent, including conversation history, 
+/// Represents the runtime state of the AI agent, including conversation history,
 /// active threads, and operational status markers.
 /// </summary>
 public partial class AgentState : ObservableObject

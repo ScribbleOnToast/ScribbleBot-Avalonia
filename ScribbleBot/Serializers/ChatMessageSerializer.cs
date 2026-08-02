@@ -1,5 +1,8 @@
 using System.Text.Json;
 using Microsoft.Extensions.AI;
+
+namespace ScribbleBot.Serializers;
+
 public static class ChatMessageSerializer
 {
     private static readonly JsonSerializerOptions _options = new()

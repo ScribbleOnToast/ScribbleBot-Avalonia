@@ -1,7 +1,7 @@
 using Avalonia;
 using Avalonia.Markup.Xaml.Styling;
 
-namespace ScribbleBot.Services
+namespace ScribbleBot.UI
 {
     public static class ThemeManager
     {

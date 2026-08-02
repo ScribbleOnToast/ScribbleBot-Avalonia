@@ -1,7 +1,7 @@
 using Avalonia.Controls;
 using Avalonia;
 using Avalonia.Input;
-using ScribbleBot.ViewModels;
+using ScribbleBot.UI.ViewModels;
 using System.Linq;
 
 namespace ScribbleBot;

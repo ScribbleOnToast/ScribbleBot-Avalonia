@@ -14,9 +14,11 @@ using Microsoft.Extensions.Options;
 using OllamaSharp;
 using ScribbleBot.Agents;
 using ScribbleBot.Agents.Tools;
+using ScribbleBot.Models;
 using ScribbleBot.Services;
 using ScribbleBot.Settings;
-using ScribbleBot.ViewModels;
+using ScribbleBot.UI;
+using ScribbleBot.UI.ViewModels;
 using Serilog;
 using Serilog.Events;
 

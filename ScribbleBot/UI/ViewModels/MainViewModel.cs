@@ -9,7 +9,7 @@ using System.IO;
 using Microsoft.Extensions.Logging;
 using Avalonia.Platform.Storage;
 
-namespace ScribbleBot.ViewModels
+namespace ScribbleBot.UI.ViewModels
 {
     /// <summary>
     /// ViewModel for the main application window, responsible for handling user interactions, 
@@ -216,7 +216,7 @@ namespace ScribbleBot.ViewModels
         /// <param name="value">The new dark mode state.</param>
         partial void OnIsDarkModeChanged(bool value)
         {
-            ScribbleBot.Services.ThemeManager.ApplyTheme(value);
+            ScribbleBot.UI.ThemeManager.ApplyTheme(value);
         }
     }
 

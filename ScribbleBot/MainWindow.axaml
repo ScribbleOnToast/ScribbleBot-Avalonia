@@ -5,7 +5,7 @@
         xmlns:localConverters="clr-namespace:ScribbleBot.UI.Converters"
         xmlns:md="clr-namespace:Markdown.Avalonia;assembly=Markdown.Avalonia"
         xmlns:views="clr-namespace:ScribbleBot.UI.Views"
-		xmlns:vm="using:ScribbleBot.ViewModels"
+		xmlns:vm="using:ScribbleBot.UI.ViewModels"
         x:Class="ScribbleBot.MainWindow"
 		x:DataType="vm:MainViewModel"
         mc:Ignorable="d"
