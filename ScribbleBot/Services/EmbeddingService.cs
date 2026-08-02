@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.AI;
 using OllamaSharp;
 using ScribbleBot.Settings;
 
@@ -10,15 +11,25 @@ namespace ScribbleBot.Services;
 /// </summary>
 public class EmbeddingService
 {
-    private readonly OllamaApiClient _ollama;
+    private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingGenerator;
+    private readonly EmbeddingGenerationOptions _embeddingGenerationOptions;
     private readonly EmbeddingSettings _settings;
     private readonly ILogger<EmbeddingService> _logger;
 
-    public EmbeddingService(IOptions<EmbeddingSettings> settings, IOptions<OllamaSettings> ollamaSettings, ILogger<EmbeddingService> logger)
+    public EmbeddingService(IOptions<EmbeddingSettings> settings, IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator, ILogger<EmbeddingService> logger)
     {
+        _embeddingGenerationOptions = new EmbeddingGenerationOptions
+        {
+            ModelId = settings.Value.ModelId ?? "nomic-embed-text",
+            Dimensions = settings.Value.Dimensions ?? 768,
+            AdditionalProperties = new AdditionalPropertiesDictionary
+            {
+                { "endpoint", settings.Value.Endpoint ?? "http://localhost:11434" }
+            }
+        };
         _settings = settings.Value;
         _logger = logger;
-        _ollama = new OllamaApiClient(ollamaSettings.Value.Endpoint, _settings.ModelId);
+        _embeddingGenerator = embeddingGenerator;
     }
 
     /// <summary>
@@ -28,8 +39,8 @@ public class EmbeddingService
     {
         try
         {
-            var response = await _ollama.EmbedAsync(text, model: _settings.ModelId, cancellationToken: cancellationToken);
-            return response?.Embeddings?.FirstOrDefault()?.ToArray() ?? Array.Empty<float>();
+            var response = await _embeddingGenerator.GenerateAsync(text, _embeddingGenerationOptions, cancellationToken);            
+            return response?.Vector == null ? Array.Empty<float>() : response.Vector.ToArray();
         }
         catch (Exception ex)
         {
@@ -48,9 +59,9 @@ public class EmbeddingService
 
         try
         {
-            var response = await _ollama.EmbedAsync(textList, model: _settings.ModelId, cancellationToken: cancellationToken);
-            return response?.Embeddings?
-                .Select(e => e.ToArray())
+            var response = await _embeddingGenerator.GenerateAndZipAsync(textList, _embeddingGenerationOptions, cancellationToken);
+            return response?
+                .Select(e => e.Embedding.Vector.ToArray())
                 .ToList() ?? new List<float[]>();
         }
         catch (Exception ex)

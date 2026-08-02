@@ -1,8 +1,3 @@
-using System;
-using System.IO;
-using System.Net.Http;
-using System.Threading;
-using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
@@ -17,7 +12,6 @@ using ScribbleBot.Agents.Tools;
 using ScribbleBot.Models;
 using ScribbleBot.Services;
 using ScribbleBot.Settings;
-using ScribbleBot.UI;
 using ScribbleBot.UI.ViewModels;
 using Serilog;
 using Serilog.Events;
@@ -90,6 +84,12 @@ public partial class App : Application
             // Register HttpClient typed client correctly (DO NOT add AddSingleton after this)
             builder.Services.AddHttpClient<GoogleSearchService>();
             builder.Services.AddHttpClient("WarmupClient");
+
+            builder.Services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(sp =>
+            {
+                var embeddingOpts = sp.GetRequiredService<IOptions<EmbeddingSettings>>().Value;
+                return new OllamaApiClient(embeddingOpts.Endpoint, embeddingOpts.ModelId);
+            });
 
             builder.Services.AddSingleton<EmbeddingService>();
             builder.Services.AddSingleton<CodeIndexerService>();

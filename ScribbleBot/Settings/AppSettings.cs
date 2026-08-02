@@ -21,11 +21,13 @@ namespace ScribbleBot.Settings
 
     public class EmbeddingSettings
     {
+        public string? Endpoint { get; set; }
+
         // The embedding model ID to use with Ollama, e.g., "nomic-embed-text"
-        public string ModelId { get; set; } = "nomic-embed-text";
+        public string? ModelId { get; set; }
 
         // Dimension of the embedding vectors (nomic-embed-text = 768)
-        public int Dimensions { get; set; } = 768;
+        public int? Dimensions { get; set; }
     }
 
     public class GoogleSearchSettings

@@ -105,8 +105,6 @@ public class CodeWorker : IWorkerAgent
 
             return response;
         }
-
-        return null;
     }
 
     public async Task LogMessage(ChatMessage message)
