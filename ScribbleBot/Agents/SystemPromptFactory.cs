@@ -1,4 +1,4 @@
-﻿namespace ScribbleBot.Agents;
+namespace ScribbleBot.Agents;
 
 public static class SystemPromptFactory
 {

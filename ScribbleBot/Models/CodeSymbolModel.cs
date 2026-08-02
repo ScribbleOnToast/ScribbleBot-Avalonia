@@ -1,4 +1,4 @@
-﻿namespace ScribbleBot.Models;
+namespace ScribbleBot.Models;
 
 public class CodeSymbolModel
 {

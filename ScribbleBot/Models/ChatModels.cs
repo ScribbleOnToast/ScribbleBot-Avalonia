@@ -1,4 +1,4 @@
-﻿namespace ScribbleBot.Models
+namespace ScribbleBot.Models
 {
     /// <summary>
     /// DTO for storing messages which are in a thread

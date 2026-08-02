@@ -1,4 +1,4 @@
-﻿using HtmlAgilityPack;
+using HtmlAgilityPack;
 using Microsoft.Extensions.Options;
 using ScribbleBot.Settings;
 using System.Text.RegularExpressions;

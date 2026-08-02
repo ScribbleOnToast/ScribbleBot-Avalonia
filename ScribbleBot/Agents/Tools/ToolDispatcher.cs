@@ -1,4 +1,4 @@
-﻿using ScribbleBot.Services;
+using ScribbleBot.Services;
 using System.Text.Json;
 
 namespace ScribbleBot.Agents.Tools
