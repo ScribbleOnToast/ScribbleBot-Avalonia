@@ -80,6 +80,24 @@ namespace ScribbleBot.Agents.Tools
                         return JsonSerializer.Serialize(results);
                     }
 
+                case "search_code_semantic":
+                    {
+                        string projectName = GetPropertyOrDefault(root, "projectName");
+                        string query = GetPropertyOrDefault(root, "query");
+
+                        if (string.IsNullOrWhiteSpace(query))
+                        {
+                            return "Error: 'query' parameter is required for semantic search.";
+                        }
+                        if (string.IsNullOrWhiteSpace(projectName))
+                        {
+                            return "Error: 'projectName' parameter is required for semantic search.";
+                        }
+
+                        var results = await _queryService.SearchCodebaseSemanticAsync(projectName, query);
+                        return JsonSerializer.Serialize(results);
+                    }
+
                 case "get_symbol_content":
                     {
                         string projectName = GetPropertyOrDefault(root, "projectName");

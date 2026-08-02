@@ -162,6 +162,20 @@ public class DatabaseService
                 VALUES (new.rowid, new.project_name, new.symbol_name, new.signature, new.content);
             END;
             
+            -------------------------------------------------------------------------------
+            -- 2d. SEMANTIC EMBEDDINGS (Vector search for natural-language queries)
+            --     Stores JSON-serialized float vectors per symbol for cosine similarity.
+            -------------------------------------------------------------------------------
+            CREATE TABLE IF NOT EXISTS code_embeddings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                symbol_id TEXT NOT NULL UNIQUE,
+                project_name TEXT NOT NULL,
+                embedding_json TEXT NOT NULL,
+                FOREIGN KEY(symbol_id) REFERENCES code_symbols(id) ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_code_embeddings_project ON code_embeddings(project_name);
+
             ------------------------------------------------
             -- END Source Code Analysis and Reviews
             ------------------------------------------------
@@ -452,11 +466,17 @@ public class DatabaseService
         using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync();
 
-        var command = connection.CreateCommand();
-        command.CommandText = "DELETE FROM code_symbols WHERE project_name = $projectName;";
-        command.Parameters.AddWithValue("$projectName", projectName);
+        // Clear embeddings first (FK constraint), then symbols
+        var clearEmbeddings = connection.CreateCommand();
+        clearEmbeddings.CommandText = "DELETE FROM code_embeddings WHERE project_name = $projectName;";
+        clearEmbeddings.Parameters.AddWithValue("$projectName", projectName);
+        await clearEmbeddings.ExecuteNonQueryAsync();
 
-        await command.ExecuteNonQueryAsync();
+        var clearSymbols = connection.CreateCommand();
+        clearSymbols.CommandText = "DELETE FROM code_symbols WHERE project_name = $projectName;";
+        clearSymbols.Parameters.AddWithValue("$projectName", projectName);
+        await clearSymbols.ExecuteNonQueryAsync();
+
         _logger.LogInformation("Cleared existing index data for project {Project}", projectName);
     }
 
@@ -480,6 +500,79 @@ public class DatabaseService
         }
 
         return projects;
+    }
+    #endregion
+
+    #region Embedding Operations
+    public async Task SaveEmbeddingsAsync(IEnumerable<(string SymbolId, string ProjectName, float[] Vector)> embeddings)
+    {
+        var embeddingList = embeddings.ToList();
+        if (embeddingList.Count == 0) return;
+
+        using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+        using var transaction = connection.BeginTransaction();
+
+        try
+        {
+            var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = @"
+                INSERT INTO code_embeddings (symbol_id, project_name, embedding_json)
+                VALUES ($symbolId, $projectName, $embeddingJson)
+                ON CONFLICT(symbol_id) DO UPDATE SET
+                    embedding_json = excluded.embedding_json,
+                    project_name = excluded.project_name;";
+
+            var pSymbol = command.Parameters.Add("$symbolId", SqliteType.Text);
+            var pProject = command.Parameters.Add("$projectName", SqliteType.Text);
+            var pJson = command.Parameters.Add("$embeddingJson", SqliteType.Text);
+
+            foreach (var (symbolId, projectName, vector) in embeddingList)
+            {
+                pSymbol.Value = symbolId;
+                pProject.Value = projectName;
+                pJson.Value = EmbeddingService.SerializeVector(vector);
+                await command.ExecuteNonQueryAsync();
+            }
+
+            await transaction.CommitAsync();
+            _logger.LogInformation("Saved {Count} embeddings", embeddingList.Count);
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+            _logger.LogError(ex, "Failed to save embeddings");
+            throw;
+        }
+    }
+
+    public async Task<List<(string SymbolId, string SymbolName, string SymbolType, string FilePath, string? Signature, int StartLine, int EndLine, float[] Vector)>> GetEmbeddingsForProjectAsync(string projectName)
+    {
+        var results = new List<(string, string, string, string, string?, int, int, float[])>();
+        using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+
+        var command = connection.CreateCommand();
+        command.CommandText = @"
+            SELECT cs.id, cs.symbol_name, cs.symbol_type, cs.file_path, cs.signature, cs.start_line, cs.end_line, ce.embedding_json
+            FROM code_embeddings ce
+            JOIN code_symbols cs ON ce.symbol_id = cs.id
+            WHERE ce.project_name = $projectName;";
+        command.Parameters.AddWithValue("$projectName", projectName);
+
+        using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            var vector = EmbeddingService.DeserializeVector(reader.GetString(7));
+            results.Add((
+                reader.GetString(0), reader.GetString(1), reader.GetString(2),
+                reader.GetString(3), reader.IsDBNull(4) ? null : reader.GetString(4),
+                reader.GetInt32(5), reader.GetInt32(6), vector
+            ));
+        }
+
+        return results;
     }
     #endregion
 

@@ -23,5 +23,20 @@ public class CodeEdgeModel
     public string SourceId { get; set; } = string.Empty;
     public string TargetId { get; set; } = string.Empty;
     public string RelationType {  get; set; } = string.Empty; // 'CALLS', 'IMPLEMENTS', 'INHERITS', 'CONTAINS'
-} 
+}
+
+/// <summary>
+/// Result row from a semantic (embedding-based) code search.
+/// </summary>
+public class SemanticSearchResult
+{
+    public string SymbolId { get; set; } = string.Empty;
+    public string SymbolName { get; set; } = string.Empty;
+    public string SymbolType { get; set; } = string.Empty;
+    public string FilePath { get; set; } = string.Empty;
+    public string? Signature { get; set; }
+    public int StartLine { get; set; }
+    public int EndLine { get; set; }
+    public double Score { get; set; }
+}
 

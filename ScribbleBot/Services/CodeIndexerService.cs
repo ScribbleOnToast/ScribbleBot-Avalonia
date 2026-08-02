@@ -2,68 +2,84 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using ScribbleBot.Models;
+using ScribbleBot.Settings;
 using System.Xml.Linq;
 
 namespace ScribbleBot.Services;
 
 /// <summary>
-/// Service for indexing a .NET project and persisting the results to database
+/// Service for indexing a .NET project and persisting the results to database.
+/// Uses Roslyn SemanticModel for cross-file symbol resolution.
 /// </summary>
 public class CodeIndexerService
 {
     private readonly ILogger<CodeIndexerService> _logger;
     private readonly DatabaseService _databaseService;
+    private readonly EmbeddingService _embeddingService;
+    private readonly EmbeddingSettings _embeddingSettings;
 
-    // Default directories to ignore during indexing
     private static readonly HashSet<string> IgnoredDirectories = new(StringComparer.OrdinalIgnoreCase)
     {
         "bin", "obj", ".git", ".vs", "node_modules", ".idea"
     };
 
-    public CodeIndexerService(ILogger<CodeIndexerService> logger, DatabaseService databaseService)
+    private static readonly HashSet<string> SourceExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".cs", ".xaml", ".json", ".xml", ".config", ".csproj"
+    };
+
+    public CodeIndexerService(
+        ILogger<CodeIndexerService> logger,
+        DatabaseService databaseService,
+        EmbeddingService embeddingService,
+        IOptions<EmbeddingSettings> embeddingSettings)
     {
         _logger = logger;
         _databaseService = databaseService;
+        _embeddingService = embeddingService;
+        _embeddingSettings = embeddingSettings.Value;
     }
 
     public async Task<(int, List<string>)> IndexDirectoryAsync(string targetDirectoryPath, string? projectName = null)
     {
         int successFileCount = 0;
-        List<string> failedFiles = new List<string>();
+        List<string> failedFiles = new();
         if (!Directory.Exists(targetDirectoryPath))
-        {
             return (successFileCount, failedFiles);
-        }
-        else if (string.IsNullOrWhiteSpace(projectName))
-        {
+
+        if (string.IsNullOrWhiteSpace(projectName))
             projectName = new DirectoryInfo(targetDirectoryPath).Name;
-        }
 
         _logger.LogInformation("Starting indexing pass for project '{Project}' at {Path}", projectName, targetDirectoryPath);
 
-        // 1. Wipe stale index data for this project before re-indexing
         await _databaseService.ClearProjectDataAsync(projectName);
 
         var symbols = new List<CodeSymbolModel>();
         var edges = new List<CodeEdgeModel>();
-
-        // Map fully-qualified or unique symbol names to GUIDs for relationship linking
-        var symbolMap = new Dictionary<string, string>();
+        var symbolMap = new Dictionary<string, string>(StringComparer.Ordinal);
 
         var files = Directory.EnumerateFiles(targetDirectoryPath, "*.*", SearchOption.AllDirectories)
-            .Where(file => !IsPathIgnored(file));
+            .Where(f => !IsPathIgnored(f) && SourceExtensions.Contains(Path.GetExtension(f)))
+            .ToList();
+
+        // ── Phase 1: Parse all C# files into syntax trees ──────────────────────
+        var csharpTrees = new List<(string FilePath, SyntaxTree Tree)>();
+        var csharpSourceTexts = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var filePath in files)
         {
-            string extension = Path.GetExtension(filePath).ToLowerInvariant();
-
+            string extension = Path.GetExtension(filePath);
             try
             {
-                switch (extension)
+                switch (extension.ToLowerInvariant())
                 {
                     case ".cs":
-                        ParseCSharpFile(filePath, projectName, symbols, edges, symbolMap);
+                        string csSource = File.ReadAllText(filePath);
+                        var tree = CSharpSyntaxTree.ParseText(csSource);
+                        csharpTrees.Add((filePath, tree));
+                        csharpSourceTexts[filePath] = csSource;
                         break;
                     case ".xaml":
                         ParseXamlFile(filePath, projectName, symbols, edges, symbolMap);
@@ -86,44 +102,150 @@ public class CodeIndexerService
             }
         }
 
-        foreach (var edge in edges)
+        // ── Phase 2: Build a Roslyn Compilation for cross-file resolution ──────
+        CSharpCompilation? compilation = null;
+        if (csharpTrees.Count > 0)
         {
-            if (symbolMap.TryGetValue(edge.TargetId, out var resolvedTargetId))
+            compilation = CSharpCompilation.Create(
+                projectName,
+                csharpTrees.Select(t => t.Tree),
+                references: GetDefaultReferences(),
+                options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+            // Parse all C# files with semantic model for cross-file resolution
+            foreach (var (filePath, tree) in csharpTrees)
             {
-                edge.TargetId = resolvedTargetId;
+                try
+                {
+                    var semanticModel = compilation.GetSemanticModel(tree);
+                    ParseCSharpFileWithSemantics(filePath, projectName, tree, semanticModel, symbols, edges, symbolMap);
+                }
+                catch (Exception ex)
+                {
+                    failedFiles.Add(filePath);
+                    _logger.LogWarning(ex, "Failed semantic parse of {FilePath}", filePath);
+                }
             }
         }
 
-        // 2. Persist extracted nodes and relationships to SQLite
+        // ── Phase 3: Resolve edge targets ──────────────────────────────────────
+        foreach (var edge in edges)
+        {
+            if (symbolMap.TryGetValue(edge.TargetId, out var resolvedTargetId))
+                edge.TargetId = resolvedTargetId;
+        }
+
+        // ── Phase 4: Persist symbols and edges ─────────────────────────────────
         try
         {
             _logger.LogInformation("Saving {SymbolCount} symbols and {EdgeCount} edges to database...", symbols.Count, edges.Count);
             await _databaseService.SaveCodeSymbolsAsync(symbols, projectName);
             await _databaseService.SaveCodeRelationshipsAsync(edges);
-
-            _logger.LogInformation("Indexing complete for project '{Project}'.", projectName);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to save items to the database.");
             return (0, new List<string>());
         }
+
+        // ── Phase 5: Generate and persist embeddings for searchable symbols ────
+        await GenerateAndSaveEmbeddingsAsync(symbols, projectName);
+
+        _logger.LogInformation("Indexing complete for project '{Project}'.", projectName);
         return (successFileCount, failedFiles);
     }
 
-    #region Roslyn C# Parser
-    private void ParseCSharpFile(
+    // ═══════════════════════════════════════════════════════════════════════════
+    // EMBEDDING GENERATION
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    private async Task GenerateAndSaveEmbeddingsAsync(List<CodeSymbolModel> symbols, string projectName)
+    {
+        // Only embed symbols with meaningful content (classes, methods, records, structs)
+        var embeddableTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Class", "Method", "Record", "Struct", "Interface"
+        };
+
+        var toEmbed = symbols
+            .Where(s => embeddableTypes.Contains(s.SymbolType) && !string.IsNullOrWhiteSpace(s.Content))
+            .ToList();
+
+        if (toEmbed.Count == 0) return;
+
+        _logger.LogInformation("Generating embeddings for {Count} symbols...", toEmbed.Count);
+
+        // Build embedding texts: combine symbol name, signature, and truncated content
+        var embeddingTexts = toEmbed.Select(s => BuildEmbeddingText(s)).ToList();
+        var batchSize = 16;
+        var embeddings = new List<(string SymbolId, string ProjectName, float[] Vector)>();
+
+        for (int i = 0; i < embeddingTexts.Count; i += batchSize)
+        {
+            var batch = embeddingTexts.Skip(i).Take(batchSize).ToList();
+            var batchSymbols = toEmbed.Skip(i).Take(batchSize).ToList();
+
+            try
+            {
+                var vectors = await _embeddingService.EmbedBatchAsync(batch);
+                for (int j = 0; j < batchSymbols.Count; j++)
+                {
+                    if (j < vectors.Count && vectors[j].Length > 0)
+                    {
+                        embeddings.Add((batchSymbols[j].Id, projectName, vectors[j]));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Batch embedding failed for batch starting at index {Index}", i);
+            }
+        }
+
+        if (embeddings.Count > 0)
+        {
+            await _databaseService.SaveEmbeddingsAsync(embeddings);
+            _logger.LogInformation("Saved {Count} embeddings for project {Project}", embeddings.Count, projectName);
+        }
+    }
+
+    private static string BuildEmbeddingText(CodeSymbolModel symbol)
+    {
+        var sb = new System.Text.StringBuilder();
+
+        sb.Append($"{symbol.SymbolType} {symbol.SymbolName}");
+        if (!string.IsNullOrWhiteSpace(symbol.Signature))
+            sb.Append($" — {symbol.Signature}");
+
+        sb.Append('\n');
+
+        // Truncate content to avoid overly long embedding inputs
+        var content = symbol.Content ?? string.Empty;
+        if (content.Length > 2000)
+            content = content.Substring(0, 2000);
+
+        sb.Append(content);
+
+        return sb.ToString();
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ROSLYN C# PARSER WITH SEMANTICS (Cross-file resolution)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    private void ParseCSharpFileWithSemantics(
         string filePath,
         string projectName,
+        SyntaxTree tree,
+        SemanticModel semanticModel,
         List<CodeSymbolModel> symbols,
         List<CodeEdgeModel> edges,
         Dictionary<string, string> symbolMap)
     {
-        string sourceCode = File.ReadAllText(filePath);
-        SyntaxTree tree = CSharpSyntaxTree.ParseText(sourceCode);
-        CompilationUnitSyntax root = tree.GetCompilationUnitRoot();
+        var root = tree.GetCompilationUnitRoot();
+        string sourceCode = root.GetText().ToString();
 
-        // 1. Top-level File Node
+        // 1. File node
         var fileSymbol = new CodeSymbolModel
         {
             Id = Guid.NewGuid().ToString(),
@@ -137,7 +259,7 @@ public class CodeIndexerService
         };
         symbols.Add(fileSymbol);
 
-        // 2. Class / Interface / Struct Declarations
+        // 2. Type declarations
         var typeNodes = root.DescendantNodes().OfType<TypeDeclarationSyntax>();
         foreach (var typeNode in typeNodes)
         {
@@ -166,26 +288,50 @@ public class CodeIndexerService
                 SpanStart = typeNode.Span.Start,
                 SpanLength = typeNode.Span.Length
             };
-
             symbols.Add(typeSymbol);
-            symbolMap[typeName] = typeSymbol.Id;
 
-            // Inheritance & Interfaces
+            // Use fully-qualified name for cross-file resolution
+            var typeSemanticSymbol = semanticModel.GetDeclaredSymbol(typeNode);
+            if (typeSemanticSymbol != null)
+            {
+                string fqName = typeSemanticSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                symbolMap[fqName] = typeSymbol.Id;
+                symbolMap[typeName] = typeSymbol.Id; // Short name fallback
+            }
+
+            // Inheritance & Interfaces — resolve via semantic model
             if (typeNode.BaseList != null)
             {
                 foreach (var baseType in typeNode.BaseList.Types)
                 {
                     string baseName = baseType.Type.ToString();
-                    edges.Add(new CodeEdgeModel
+                    var baseSymbolInfo = semanticModel.GetSymbolInfo(baseType.Type);
+                    var baseSymbol = baseSymbolInfo.Symbol;
+                    string relationType = symbolType == "Interface" ? "INHERITS" : "IMPLEMENTS";
+
+                    if (baseSymbol != null)
                     {
-                        SourceId = typeSymbol.Id,
-                        TargetId = baseName, // Will be resolved or matched by name in tool queries
-                        RelationType = symbolType == "Interface" ? "INHERITS" : "IMPLEMENTS"
-                    });
+                        string fqBaseName = baseSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                        edges.Add(new CodeEdgeModel
+                        {
+                            SourceId = typeSymbol.Id,
+                            TargetId = fqBaseName,
+                            RelationType = relationType
+                        });
+                    }
+                    else
+                    {
+                        edges.Add(new CodeEdgeModel
+                        {
+                            SourceId = typeSymbol.Id,
+                            TargetId = baseName,
+                            RelationType = relationType
+                        });
+                    }
                 }
             }
 
-            // Methods inside the Type
+            // 3. Methods inside the type
             foreach (var method in typeNode.Members.OfType<MethodDeclarationSyntax>())
             {
                 var mLineSpan = tree.GetLineSpan(method.Span);
@@ -203,27 +349,48 @@ public class CodeIndexerService
                     SpanStart = method.Span.Start,
                     SpanLength = method.Span.Length
                 };
-
                 symbols.Add(methodSymbol);
 
-                // Method Calls (Invocations)
+                var methodSemanticSymbol = semanticModel.GetDeclaredSymbol(method);
+                if (methodSemanticSymbol != null)
+                {
+                    string fqMethodName = methodSemanticSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                    symbolMap[fqMethodName] = methodSymbol.Id;
+                    symbolMap[method.Identifier.Text] = methodSymbol.Id; // Short name fallback
+                }
+
+                // Method calls — resolve via semantic model for cross-file targets
                 var invocations = method.DescendantNodes().OfType<InvocationExpressionSyntax>();
                 foreach (var inv in invocations)
                 {
-                    string calleeName = inv.Expression.ToString();
+                    var callSymbolInfo = semanticModel.GetSymbolInfo(inv);
+                    var callSymbol = callSymbolInfo.Symbol;
+
+                    string calleeId;
+                    if (callSymbol is IMethodSymbol methodSym)
+                    {
+                        calleeId = methodSym.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                    }
+                    else
+                    {
+                        calleeId = inv.Expression.ToString();
+                    }
+
                     edges.Add(new CodeEdgeModel
                     {
                         SourceId = methodSymbol.Id,
-                        TargetId = calleeName,
+                        TargetId = calleeId,
                         RelationType = "CALLS"
                     });
                 }
             }
         }
     }
-    #endregion
 
-    #region XAML & Config Parsers
+    // ═══════════════════════════════════════════════════════════════════════════
+    // XAML & CONFIG PARSERS (unchanged from original)
+    // ═══════════════════════════════════════════════════════════════════════════
+
     private void ParseXamlFile(
         string filePath,
         string projectName,
@@ -250,7 +417,6 @@ public class CodeIndexerService
         };
         symbols.Add(fileSymbol);
 
-        // Link to Code-Behind file if it exists
         string codeBehindPath = filePath + ".cs";
         if (File.Exists(codeBehindPath))
         {
@@ -302,5 +468,38 @@ public class CodeIndexerService
         var dirs = path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         return dirs.Any(dir => IgnoredDirectories.Contains(dir));
     }
-    #endregion
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ROSLYN ASSEMBLY REFERENCES
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Returns a baseline set of MetadataReferences for common .NET assemblies.
+    /// This enables cross-file symbol resolution without requiring a full MSBuild workspace.
+    /// </summary>
+    private static IEnumerable<MetadataReference> GetDefaultReferences()
+    {
+        // Use the runtime's trust assembly list as a reasonable default reference set.
+        // This avoids the complexity of MSBuild project references while still
+        // resolving most framework and library symbols.
+        var loadedAssemblies = AppDomain.CurrentDomain.GetAssemblies();
+        var references = new List<MetadataReference>();
+
+        foreach (var assembly in loadedAssemblies)
+        {
+            try
+            {
+                if (!assembly.IsDynamic && !string.IsNullOrEmpty(assembly.Location))
+                {
+                    references.Add(MetadataReference.CreateFromFile(assembly.Location));
+                }
+            }
+            catch
+            {
+                // Skip assemblies that can't be referenced
+            }
+        }
+
+        return references;
+    }
 }

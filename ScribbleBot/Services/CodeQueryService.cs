@@ -8,11 +8,13 @@ public class CodeQueryService
 {
     private readonly ILogger<CodeQueryService> _logger;
     private readonly DatabaseService _databaseService;
+    private readonly EmbeddingService _embeddingService;
 
-    public CodeQueryService(ILogger<CodeQueryService> logger, DatabaseService databaseService)
+    public CodeQueryService(ILogger<CodeQueryService> logger, DatabaseService databaseService, EmbeddingService embeddingService)
     {
         _logger = logger;
         _databaseService = databaseService;
+        _embeddingService = embeddingService;
     }
 
     /// <summary>
@@ -129,5 +131,47 @@ public class CodeQueryService
     public async Task<List<string>> GetIndexedProjectsAsync()
     {
         return await _databaseService.GetIndexedProjectNamesAsync();
+    }
+
+    /// <summary>
+    /// Performs semantic (embedding-based) search across all indexed symbols in a project.
+    /// Embeds the query, loads all symbol embeddings, and ranks by cosine similarity.
+    /// </summary>
+    public async Task<List<SemanticSearchResult>> SearchCodebaseSemanticAsync(string projectName, string query, int limit = 10)
+    {
+        _logger.LogInformation("Semantic search in project {Project} for '{Query}'", projectName, query);
+
+        var queryVector = await _embeddingService.EmbedAsync(query);
+        if (queryVector.Length == 0)
+        {
+            _logger.LogWarning("Query embedding failed; returning empty results");
+            return new List<SemanticSearchResult>();
+        }
+
+        var allEmbeddings = await _databaseService.GetEmbeddingsForProjectAsync(projectName);
+        if (allEmbeddings.Count == 0)
+        {
+            _logger.LogWarning("No embeddings found for project {Project}", projectName);
+            return new List<SemanticSearchResult>();
+        }
+
+        var ranked = allEmbeddings
+            .Select(e => new SemanticSearchResult
+            {
+                SymbolId = e.Item1,
+                SymbolName = e.Item2,
+                SymbolType = e.Item3,
+                FilePath = e.Item4,
+                Signature = e.Item5,
+                StartLine = e.Item6,
+                EndLine = e.Item7,
+                Score = EmbeddingService.CosineSimilarity(queryVector, e.Item8)
+            })
+            .OrderByDescending(r => r.Score)
+            .Take(limit)
+            .ToList();
+
+        _logger.LogInformation("Semantic search returned {Count} results (top score: {Score:F4})", ranked.Count, ranked.Count > 0 ? ranked[0].Score : 0);
+        return ranked;
     }
 }

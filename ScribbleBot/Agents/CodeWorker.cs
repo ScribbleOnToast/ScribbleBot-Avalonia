@@ -45,7 +45,12 @@ public class CodeWorker : IWorkerAgent
                 AIFunctionFactory.Create(
                     (string query) => _toolDispatcher.DispatchAsync("search_code_symbols", JsonSerializer.Serialize(new { query })),
                     "search_code_symbols",
-                    "Searches the SQLite FTS index for classes, methods, and signatures across the indexed codebase."),
+                    "Searches the SQLite FTS index for classes, methods, and signatures across the indexed codebase. Use for exact symbol name searches."),
+
+                AIFunctionFactory.Create(
+                    (string projectName, string query) => _toolDispatcher.DispatchAsync("search_code_semantic", JsonSerializer.Serialize(new { projectName, query })),
+                    "search_code_semantic",
+                    "Performs semantic (meaning-based) search across the indexed codebase using embeddings. Use when the user asks 'how does X work' or 'where is the code that handles Y' — finds relevant symbols even when exact names don't match. Requires a project to be indexed first."),
 
                 AIFunctionFactory.Create(
                     (string projectName) => _toolDispatcher.DispatchAsync("get_project_summary", JsonSerializer.Serialize(new { projectName })),

@@ -73,6 +73,9 @@ public partial class App : Application
             builder.Services.AddOptions<GoogleSearchSettings>()
                 .BindConfiguration("GoogleSearchSettings");
 
+            builder.Services.AddOptions<EmbeddingSettings>()
+                .BindConfiguration("EmbeddingSettings");
+
             // Ollama IChatClient
             builder.Services.AddSingleton<IChatClient>(sp =>
             {
@@ -88,6 +91,7 @@ public partial class App : Application
             builder.Services.AddHttpClient<GoogleSearchService>();
             builder.Services.AddHttpClient("WarmupClient");
 
+            builder.Services.AddSingleton<EmbeddingService>();
             builder.Services.AddSingleton<CodeIndexerService>();
             builder.Services.AddSingleton<CodeQueryService>();
             builder.Services.AddSingleton<SupervisorAgent>();
