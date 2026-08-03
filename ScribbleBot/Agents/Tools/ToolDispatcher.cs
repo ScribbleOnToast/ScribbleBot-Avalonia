@@ -1,7 +1,7 @@
 using ScribbleBot.Services;
 using System.Text.Json;
 
-namespace ScribbleBot.Agents
+namespace ScribbleBot.Agents.Tools
 {
     public class ToolDispatcher
     {

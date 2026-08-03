@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OllamaSharp;
 using ScribbleBot.Agents;
+using ScribbleBot.Agents.Tools;
 using ScribbleBot.Models;
 using ScribbleBot.Services;
 using ScribbleBot.Settings;

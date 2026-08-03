@@ -1,4 +1,5 @@
 using Microsoft.Extensions.AI;
+using ScribbleBot.Agents.Tools;
 using ScribbleBot.Services;
 using System.Text.Json;
 
