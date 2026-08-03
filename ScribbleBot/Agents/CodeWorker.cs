@@ -77,9 +77,9 @@ public class CodeWorker : IWorkerAgent
                     "Reads the content of a file from the local filesystem. Use this to read any file that is not part of the indexed codebase."
                     ),
 
-                AIFunctionFactory.Create((string filePath, string content) => _toolDispatcher.DispatchAsync("write_file", JsonSerializer.Serialize(new { filePath, content })),
+                AIFunctionFactory.Create((string filePath, string[] content) => _toolDispatcher.DispatchAsync("write_file", JsonSerializer.Serialize(new { filePath, content })),
                     "write_file", 
-                    "Write a file to the local filesystem. Use this to write a NEW TEXT BASED FILE. It should not be used to update or modify existing files."
+                    "Write a file to the local filesystem, line by line. Use this to write a NEW TEXT BASED FILE. It should not be used to update or modify existing files."
                     ),
 
                 AIFunctionFactory.Create((string filePath, int lineNumber, string[] newContent) => _toolDispatcher.DispatchAsync("update_file", JsonSerializer.Serialize(new { filePath, lineNumber, newContent })),
