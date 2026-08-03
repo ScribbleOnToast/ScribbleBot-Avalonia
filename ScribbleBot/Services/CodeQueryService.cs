@@ -40,14 +40,10 @@ public class CodeQueryService
 
         foreach (var group in grouped)
         {
-            sb.AppendLine($"## {group.Key}s ({group.Count()})");
+            sb.AppendLine($"## {group.Key}");
             foreach (var item in group.Take(25)) // Cap individual lists to avoid flooding context
             {
                 sb.AppendLine($"- **{item.SymbolName}** (`{Path.GetFileName(item.FilePath)}`)");
-            }
-            if (group.Count() > 25)
-            {
-                sb.AppendLine($"  *...and {group.Count() - 25} more {group.Key} symbols.*");
             }
             sb.AppendLine();
         }

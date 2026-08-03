@@ -70,23 +70,46 @@ public partial class App : Application
             builder.Services.AddOptions<EmbeddingSettings>()
                 .BindConfiguration("EmbeddingSettings");
 
+            //Using Qwen3.6 really pushes the limits of Ollama's default timeout, so we extend it to 10 minutes for long LLM generations
+            builder.Services.AddHttpClient("OllamaChatClient", client =>
+            {
+                client.Timeout = TimeSpan.FromMinutes(10);
+            });
+
+            builder.Services.AddHttpClient("OllamaEmbeddingClient", client =>
+            {
+                client.Timeout = TimeSpan.FromMinutes(10);
+            });
+
             // Ollama IChatClient
             builder.Services.AddSingleton<IChatClient>(sp =>
             {
                 var ollamaOpts = sp.GetRequiredService<IOptions<OllamaSettings>>().Value;
-                return new OllamaApiClient(ollamaOpts.Endpoint, ollamaOpts.ModelId);
+                var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
+                var httpClient = httpClientFactory.CreateClient("OllamaChatClient");
+                httpClient.BaseAddress = new Uri(ollamaOpts.Endpoint);
+                return new OllamaApiClient(httpClient)
+                {
+                    SelectedModel = ollamaOpts.ModelId
+                };
+            });
+
+            //Ollama Embeddings Generator
+            builder.Services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(sp =>
+            {
+                var embeddingOpts = sp.GetRequiredService<IOptions<EmbeddingSettings>>().Value;
+                var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
+                var httpClient = httpClientFactory.CreateClient("OllamaEmbeddingClient");
+                httpClient.BaseAddress = new Uri(embeddingOpts.Endpoint);
+                return new OllamaApiClient(httpClient)
+                {
+                    SelectedModel = embeddingOpts.ModelId
+                };
             });
 
             // Application State & Services
             builder.Services.AddSingleton<AgentState>();
             builder.Services.AddSingleton<DatabaseService>();
-
-            builder.Services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(sp =>
-            {
-                var embeddingOpts = sp.GetRequiredService<IOptions<EmbeddingSettings>>().Value;
-                return new OllamaApiClient(embeddingOpts.Endpoint, embeddingOpts.ModelId);
-            });
-
             builder.Services.AddSingleton<EmbeddingService>();
             builder.Services.AddSingleton<CodeIndexerService>();
             builder.Services.AddSingleton<CodeQueryService>();

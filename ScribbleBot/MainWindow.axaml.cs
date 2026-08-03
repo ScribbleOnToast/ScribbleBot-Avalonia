@@ -22,9 +22,22 @@ public partial class MainWindow : Window
 
         ChatScrollViewer.ScrollChanged += (sender, e) =>
         {
+            // Check if height expanded (e.g., streaming tokens or new messages arriving)
             if (e.ExtentDelta.Y > 0)
             {
-                ChatScrollViewer.ScrollToEnd();
+                // Calculate where the bottom was before this layout update
+                double oldMaxOffset = e.ExtentDelta.Y > 0
+                    ? ChatScrollViewer.Extent.Height - e.ExtentDelta.Y - ChatScrollViewer.Viewport.Height
+                    : ChatScrollViewer.Extent.Height - ChatScrollViewer.Viewport.Height;
+
+                // Small tolerance threshold (in pixels) to detect if user was "at the bottom"
+                const double threshold = 20.0;
+
+                // If the previous scroll position was within the threshold of the bottom, lock to bottom
+                if (e.OffsetDelta.Y >= oldMaxOffset - threshold)
+                {
+                    ChatScrollViewer.ScrollToEnd();
+                }
             }
         };
     }
