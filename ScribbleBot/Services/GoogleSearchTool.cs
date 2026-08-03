@@ -3,7 +3,7 @@ using Microsoft.Extensions.Options;
 using ScribbleBot.Settings;
 using System.Text.RegularExpressions;
 
-namespace ScribbleBot.Agents.Tools;
+namespace ScribbleBot.Services;
 
 public class SearchResultItem
 {

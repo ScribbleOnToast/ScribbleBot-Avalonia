@@ -1,6 +1,5 @@
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
-using ScribbleBot.Agents.Tools;
 using ScribbleBot.Services;
 using System.Text.Json;
 
@@ -71,7 +70,23 @@ public class CodeWorker : IWorkerAgent
                     () => _toolDispatcher.DispatchAsync("list_indexed_projects",  "{}"),
                     "list_indexed_projects",
                     "Retrieve a list of index projects by name"
+                    ), 
+
+                AIFunctionFactory.Create((string filePath) => _toolDispatcher.DispatchAsync("read_file", JsonSerializer.Serialize(new { filePath })),
+                    "read_file",
+                    "Reads the content of a file from the local filesystem. Use this to read any file that is not part of the indexed codebase."
+                    ),
+
+                AIFunctionFactory.Create((string filePath, string content) => _toolDispatcher.DispatchAsync("write_file", JsonSerializer.Serialize(new { filePath, content })),
+                    "write_file", 
+                    "Write a file to the local filesystem. Use this to write a NEW TEXT BASED FILE. It should not be used to update or modify existing files."
+                    ),
+
+                AIFunctionFactory.Create((string filePath, int lineNumber, string[] newContent) => _toolDispatcher.DispatchAsync("update_file", JsonSerializer.Serialize(new { filePath, lineNumber, newContent })),
+                    "update_file",
+                    "Update to modify a file to insert new lines after a specific line in a text file on the local filesystem. Use this to modify existing files. Do not attempt to remove existing lines."
                     )
+
             }
         };
 

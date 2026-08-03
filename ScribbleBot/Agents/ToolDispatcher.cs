@@ -1,7 +1,7 @@
 using ScribbleBot.Services;
 using System.Text.Json;
 
-namespace ScribbleBot.Agents.Tools
+namespace ScribbleBot.Agents
 {
     public class ToolDispatcher
     {
@@ -9,6 +9,7 @@ namespace ScribbleBot.Agents.Tools
         private readonly DatabaseService _dbService;
         private readonly CodeIndexerService _indexerService;
         private readonly CodeQueryService _queryService;
+        private readonly FileIOService _fileIOService;
 
         public ToolDispatcher(
             GoogleSearchService searchService,
@@ -20,6 +21,7 @@ namespace ScribbleBot.Agents.Tools
             _dbService = dbService;
             _indexerService = indexerService;
             _queryService = queryService;
+            _fileIOService = new FileIOService();
         }
 
         public async Task<string> DispatchAsync(string functionName, string argumentsJson)
@@ -130,6 +132,53 @@ namespace ScribbleBot.Agents.Tools
                             return "No projects are currently indexed in the database.";
                         }
                         return $"Indexed projects: {string.Join(", ", projects)}";
+                    }
+
+                case "read_file":
+                    {
+                        string filePath = GetPropertyOrDefault(root, "filePath");
+                        if (string.IsNullOrWhiteSpace(filePath))
+                        {
+                            return "Error: 'filePath' parameter is required.";
+                        }
+                        var content = _fileIOService.ReadFile(filePath);
+                        return JsonSerializer.Serialize(content);
+                    }
+
+                case "write_file":
+                    {
+                        string filePath = GetPropertyOrDefault(root, "filePath");
+                        string contentroot = GetPropertyOrDefault(root, "content");
+                        var contentElement = root.GetProperty("content");
+                        var content = JsonSerializer.Deserialize<string[]>(contentElement.GetRawText());
+                        if (string.IsNullOrWhiteSpace(filePath))
+                        {
+                            return "Error: 'filePath' parameter is required.";
+                        }
+                        if (content == null)
+                        {
+                            return "Error: 'content' parameter is required and must be an array of strings.";
+                        }
+                        bool success = _fileIOService.WriteFile(filePath, content);
+                        return success ? $"Successfully wrote to file '{filePath}'." : $"Failed to write to file '{filePath}'.";
+                    }
+
+                case "modify_file":
+                    {
+                        string filePath = GetPropertyOrDefault(root, "filePath");
+                        int lineNumber = root.GetProperty("lineNumber").GetInt32();
+                        var contentElement = root.GetProperty("content");
+                        var content = JsonSerializer.Deserialize<string[]>(contentElement.GetRawText());
+                        if (string.IsNullOrWhiteSpace(filePath))
+                        {
+                            return "Error: 'filePath' parameter is required.";
+                        }
+                        if (content == null)
+                        {
+                            return "Error: 'content' parameter is required and must be an array of strings.";
+                        }
+                        bool success = _fileIOService.ModifyFile(filePath, lineNumber, content);
+                        return success ? $"Successfully modified file '{filePath}' at line {lineNumber}." : $"Failed to modify file '{filePath}' at line {lineNumber}.";
                     }
 
                 default:
