@@ -10,19 +10,21 @@ public class CodeWorker : IWorkerAgent
 {
     private readonly IChatClient _chatClient;
     private readonly ContextCompactor _compactor;
-    private readonly ToolDispatcher _toolDispatcher;
     private readonly ILogger<CodeWorker> _logger;
+    private readonly ToolsForCodeWorker _tools;
+    private readonly ToolDispatcher _dispatcher;
 
     public string Name { get; set; } = "CodeWorker";
     public string Description { get; set; } = "Unified agent for all source code tasks: indexing repositories, analyzing system architecture, explaining call flows, and conducting PR-style security & code quality reviews.";
     public string Model { get; set; } = "gemma4:26b";
 
-    public CodeWorker(IChatClient chatClient, ContextCompactor compactor, ToolDispatcher toolDispatcher, ILogger<CodeWorker> logger)
+    public CodeWorker(IChatClient chatClient, ContextCompactor compactor, ToolsForCodeWorker tools, ToolDispatcher dispatcher, ILogger<CodeWorker> logger)
     {
         _chatClient = chatClient;
         _compactor = compactor;
-        _toolDispatcher = toolDispatcher;
         _logger = logger;
+        _tools = tools;
+        _dispatcher = dispatcher;
     }
 
     public async Task<ChatResponse?> ProcessAsync(IEnumerable<ChatMessage> history, string systemSummary)
@@ -35,44 +37,7 @@ public class CodeWorker : IWorkerAgent
         var options = new ChatOptions
         {
             Temperature = 0.2f,
-            Tools = new List<AITool>
-            {
-                AIFunctionFactory.Create(
-                    (string folderPath) => _toolDispatcher.DispatchAsync("index_codebase", JsonSerializer.Serialize(new { folderPath })),
-                    "index_codebase",
-                    "Scans and indexes all .cs, .xaml, .json, and config files in the target directory into the SQLite structural map. Call this when given a folder path to consume."),
-
-                AIFunctionFactory.Create(
-                    (string query) => _toolDispatcher.DispatchAsync("search_code_symbols", JsonSerializer.Serialize(new { query })),
-                    "search_code_symbols",
-                    "Searches the SQLite FTS index for classes, methods, and signatures across the indexed codebase. Use for exact symbol name searches."),
-
-                AIFunctionFactory.Create(
-                    (string projectName, string query) => _toolDispatcher.DispatchAsync("search_code_semantic", JsonSerializer.Serialize(new { projectName, query })),
-                    "search_code_semantic",
-                    "Performs semantic (meaning-based) search across the indexed codebase using embeddings. Use when the user asks 'how does X work' or 'where is the code that handles Y' — finds relevant symbols even when exact names don't match. Requires a project to be indexed first."),
-
-                AIFunctionFactory.Create(
-                    (string projectName) => _toolDispatcher.DispatchAsync("get_project_summary", JsonSerializer.Serialize(new { projectName })),
-                    "get_project_summary",
-                    "Retrieves high-level architectural overview and primary types for an indexed project."),
-
-                AIFunctionFactory.Create(
-                    (string projectName, string symbolIdentifier) => _toolDispatcher.DispatchAsync("get_symbol_content", JsonSerializer.Serialize(new { projectName, symbolIdentifier })),
-                    "get_symbol_content",
-                    "Fetches the exact source code content and line numbers for a specific class, method, or file."),
-
-                AIFunctionFactory.Create(
-                    (string symbolIdentifier) => _toolDispatcher.DispatchAsync("get_symbol_relationships", JsonSerializer.Serialize(new { symbolIdentifier })),
-                    "get_symbol_relationships",
-                    "Retrieves call graphs, interface implementations, and dependencies for a target symbol."), 
-
-                AIFunctionFactory.Create(
-                    () => _toolDispatcher.DispatchAsync("list_indexed_projects",  "{}"),
-                    "list_indexed_projects",
-                    "Retrieve a list of index projects by name"
-                    )
-            }
+            Tools = _tools.AvailableTools()
         };
 
         var iterationTimeout = DateTime.Now.AddMinutes(5);
@@ -92,7 +57,7 @@ public class CodeWorker : IWorkerAgent
                 foreach (var call in functionCalls)
                 {
                     string argsJson = JsonSerializer.Serialize(call.Arguments);
-                    string toolResult = await _toolDispatcher.DispatchAsync(call.Name, argsJson);
+                    string toolResult = await _dispatcher.DispatchAsync(call.Name, argsJson);
 
                     compactedPayload.Add(new ChatMessage(ChatRole.Tool, new[]
                     {

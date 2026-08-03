@@ -118,6 +118,8 @@ public partial class App : Application
             builder.Services.AddSingleton<ToolDispatcher>();
             builder.Services.AddTransient<ContextCompactor>();
             builder.Services.AddSingleton<FileIngestionService>();
+            builder.Services.AddSingleton<ToolsForCodeWorker>();
+            builder.Services.AddSingleton<FileIOService>();
 
             // Register Agents
             builder.Services.AddSingleton<IWorkerAgent, ChatWorker>();
