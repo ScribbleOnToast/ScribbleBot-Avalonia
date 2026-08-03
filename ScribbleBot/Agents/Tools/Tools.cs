@@ -69,8 +69,8 @@ namespace ScribbleBot.Agents.Tools
                     "Write a file to the local filesystem, line by line. Use this to write a NEW TEXT BASED FILE. It should not be used to update or modify existing files."
                     ),
 
-                AIFunctionFactory.Create((string filePath, int lineNumber, string[] newContent) => _toolDispatcher.DispatchAsync("update_file", JsonSerializer.Serialize(new { filePath, lineNumber, newContent })),
-                    "update_file",
+                AIFunctionFactory.Create((string filePath, int lineNumber, string[] newContent) => _toolDispatcher.DispatchAsync("modify_file", JsonSerializer.Serialize(new { filePath, lineNumber, newContent })),
+                    "modify_file",
                     "Update to modify a file to insert new lines after a specific line in a text file on the local filesystem. Use this to modify existing files. Do not attempt to remove existing lines."
                     )
             };

@@ -23,10 +23,12 @@ namespace ScribbleBot.Services
             bool success = false;
             try
             {
-                foreach (var line in content)
+                if (File.Exists(filePath))
                 {
-                    System.IO.File.AppendAllText(filePath, line + Environment.NewLine);
+                    File.Delete(filePath);
                 }
+                System.IO.File.WriteAllLines(filePath, content);
+
 
                 //TODO Add some kind of verification that the file was written successfully,
                 //maybe check if the file exists and has the expected number of lines or something similar.
@@ -34,7 +36,7 @@ namespace ScribbleBot.Services
                 var validate = true;
                 success = validate;
             }
-            catch 
+            catch
             {
                 success = false;
             }
@@ -49,15 +51,7 @@ namespace ScribbleBot.Services
             {
                 var lines = ReadFile(filePath);
                 lines.InsertRange(lineNumber, content);
-                foreach (var line in content)
-                {
-                    System.IO.File.AppendAllText(filePath, line + Environment.NewLine);
-                }
-
-                //TODO Add some kind of verification that the file was updated successfully,
-                //maybe check if the file exists and has the expected number of lines or something similar.
-                var validate = true;
-                success = validate;
+                success = WriteFile(filePath, lines.ToArray());
             }
             catch
             {

@@ -6,22 +6,20 @@ namespace ScribbleBot.Agents.Tools
     public class ToolDispatcher
     {
         private readonly GoogleSearchService _searchService;
-        private readonly DatabaseService _dbService;
         private readonly CodeIndexerService _indexerService;
         private readonly CodeQueryService _queryService;
         private readonly FileIOService _fileIOService;
 
         public ToolDispatcher(
             GoogleSearchService searchService,
-            DatabaseService dbService,
             CodeIndexerService indexerService,
-            CodeQueryService queryService)
+            CodeQueryService queryService,
+            FileIOService fileIOService)
         {
             _searchService = searchService;
-            _dbService = dbService;
             _indexerService = indexerService;
             _queryService = queryService;
-            _fileIOService = new FileIOService();
+            _fileIOService = fileIOService;
         }
 
         public async Task<string> DispatchAsync(string functionName, string argumentsJson)

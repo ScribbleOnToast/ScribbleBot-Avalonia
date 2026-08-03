@@ -10,21 +10,21 @@ public class CodeWorker : IWorkerAgent
 {
     private readonly IChatClient _chatClient;
     private readonly ContextCompactor _compactor;
-    private readonly ToolDispatcher _toolDispatcher;
     private readonly ILogger<CodeWorker> _logger;
-    private readonly List<AITool> _tools;
+    private readonly ToolsForCodeWorker _tools;
+    private readonly ToolDispatcher _dispatcher;
 
     public string Name { get; set; } = "CodeWorker";
     public string Description { get; set; } = "Unified agent for all source code tasks: indexing repositories, analyzing system architecture, explaining call flows, and conducting PR-style security & code quality reviews.";
     public string Model { get; set; } = "gemma4:26b";
 
-    public CodeWorker(IChatClient chatClient, ContextCompactor compactor, ToolDispatcher toolDispatcher, ILogger<CodeWorker> logger)
+    public CodeWorker(IChatClient chatClient, ContextCompactor compactor, ToolsForCodeWorker tools, ToolDispatcher dispatcher, ILogger<CodeWorker> logger)
     {
         _chatClient = chatClient;
         _compactor = compactor;
-        _toolDispatcher = toolDispatcher;
         _logger = logger;
-        _tools = new ToolsForCodeWorker(_toolDispatcher).AvailableTools();
+        _tools = tools;
+        _dispatcher = dispatcher;
     }
 
     public async Task<ChatResponse?> ProcessAsync(IEnumerable<ChatMessage> history, string systemSummary)
@@ -37,7 +37,7 @@ public class CodeWorker : IWorkerAgent
         var options = new ChatOptions
         {
             Temperature = 0.2f,
-            Tools = _tools
+            Tools = _tools.AvailableTools()
         };
 
         var iterationTimeout = DateTime.Now.AddMinutes(5);
@@ -57,7 +57,7 @@ public class CodeWorker : IWorkerAgent
                 foreach (var call in functionCalls)
                 {
                     string argsJson = JsonSerializer.Serialize(call.Arguments);
-                    string toolResult = await _toolDispatcher.DispatchAsync(call.Name, argsJson);
+                    string toolResult = await _dispatcher.DispatchAsync(call.Name, argsJson);
 
                     compactedPayload.Add(new ChatMessage(ChatRole.Tool, new[]
                     {
