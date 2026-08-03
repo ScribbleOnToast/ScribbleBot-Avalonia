@@ -1,7 +1,6 @@
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Microsoft.Extensions.AI;
-using OllamaSharp;
 using ScribbleBot.Settings;
 
 namespace ScribbleBot.Services;
@@ -18,18 +17,13 @@ public class EmbeddingService
 
     public EmbeddingService(IOptions<EmbeddingSettings> settings, IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator, ILogger<EmbeddingService> logger)
     {
-        _embeddingGenerationOptions = new EmbeddingGenerationOptions
-        {
-            ModelId = settings.Value.ModelId ?? "nomic-embed-text",
-            Dimensions = settings.Value.Dimensions ?? 768,
-            AdditionalProperties = new AdditionalPropertiesDictionary
-            {
-                { "endpoint", settings.Value.Endpoint ?? "http://localhost:11434" }
-            }
-        };
         _settings = settings.Value;
         _logger = logger;
         _embeddingGenerator = embeddingGenerator;
+        _embeddingGenerationOptions = new EmbeddingGenerationOptions
+        {
+            Dimensions = _settings.Dimensions ?? 768,
+        };
     }
 
     /// <summary>

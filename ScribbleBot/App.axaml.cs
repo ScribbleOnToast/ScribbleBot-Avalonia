@@ -81,10 +81,6 @@ public partial class App : Application
             builder.Services.AddSingleton<AgentState>();
             builder.Services.AddSingleton<DatabaseService>();
 
-            // Register HttpClient typed client correctly (DO NOT add AddSingleton after this)
-            builder.Services.AddHttpClient<GoogleSearchService>();
-            builder.Services.AddHttpClient("WarmupClient");
-
             builder.Services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(sp =>
             {
                 var embeddingOpts = sp.GetRequiredService<IOptions<EmbeddingSettings>>().Value;
@@ -110,6 +106,10 @@ public partial class App : Application
             {
                 DataContext = sp.GetRequiredService<MainViewModel>()
             });
+
+            // Register HttpClient typed client correctly (DO NOT add AddSingleton after this)
+            builder.Services.AddHttpClient<GoogleSearchService>();
+            builder.Services.AddHttpClient("WarmupClient");
 
             _host = builder.Build();
 
