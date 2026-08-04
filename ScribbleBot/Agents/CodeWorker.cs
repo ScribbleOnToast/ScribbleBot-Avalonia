@@ -43,7 +43,7 @@ public class CodeWorker : IWorkerAgent
         var iterationTimeout = DateTime.Now.AddMinutes(5);
         int turnIterator = 0;
         await LogMessage(history.Last());
-        while (true)//iterationTimeout > DateTime.Now)
+        while (iterationTimeout > DateTime.Now)
         {
             turnIterator++;
             _logger.LogInformation("Turn {turn}", turnIterator);
@@ -67,9 +67,9 @@ public class CodeWorker : IWorkerAgent
                 }
                 continue;
             }
-
             return response;
         }
+        return null;
     }
 
     public async Task LogMessage(ChatMessage message)

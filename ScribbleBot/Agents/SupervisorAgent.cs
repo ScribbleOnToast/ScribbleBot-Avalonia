@@ -311,9 +311,13 @@ namespace ScribbleBot.Agents
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error occurred while handling user message in thread {ThreadId}", _state.CurrentThread.Id);
-                var errorMsg = $"[Error]: {ex.Message}";
-                //_state.Messages.Add(new ChatMessage(ChatRole.Assistant, errorMsg));
-                //_state.ActiveMessages.Add(new ChatMessageModel { Role = "assistant", Content = errorMsg, Timestamp = DateTime.Now });
+                //Remove the bad message 
+                if (_state.Messages.Last().Role == ChatRole.User){
+                    _state.Messages.RemoveAt(_state.Messages.Count - 1);
+                }
+                if (_state.ActiveMessages.Last().Role == ChatRole.User) {
+                    _state.ActiveMessages.RemoveAt(_state.ActiveMessages.Count - 1);
+                }
                 _state.StatusMessage = "Error occurred";
             }
             finally

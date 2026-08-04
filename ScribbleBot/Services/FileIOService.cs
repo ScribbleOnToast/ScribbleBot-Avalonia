@@ -20,7 +20,6 @@ namespace ScribbleBot.Services
 
         public bool WriteFile(string filePath, string[] content) 
         {
-            bool success = false;
             try
             {
                 if (File.Exists(filePath))
@@ -28,20 +27,13 @@ namespace ScribbleBot.Services
                     File.Delete(filePath);
                 }
                 System.IO.File.WriteAllLines(filePath, content);
-
-
-                //TODO Add some kind of verification that the file was written successfully,
-                //maybe check if the file exists and has the expected number of lines or something similar.
-                //Maybe iterate through content and check if each line exists in the file, but that might be overkill.
-                var validate = true;
-                success = validate;
+                                
+                return File.Exists(filePath) && ReadFile(filePath).Count == content.Length;
             }
             catch
             {
-                success = false;
+                return false;
             }
-            return success;
-            
         }
 
         public bool ModifyFile(string filePath, int lineNumber, string[] content) 
@@ -50,7 +42,7 @@ namespace ScribbleBot.Services
             try
             {
                 var lines = ReadFile(filePath);
-                lines.InsertRange(lineNumber, content);
+                lines.InsertRange(lineNumber + 1, content);
                 success = WriteFile(filePath, lines.ToArray());
             }
             catch

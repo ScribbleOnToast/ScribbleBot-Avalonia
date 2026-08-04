@@ -17,6 +17,8 @@ namespace ScribbleBot.Settings
 
         // Flag to indicate whether the model should be unloaded when the application exits
         public bool UnloadOnExit { get; set; }
+
+        public required int MaxTokens { get; set; }
     }
 
     public class EmbeddingSettings

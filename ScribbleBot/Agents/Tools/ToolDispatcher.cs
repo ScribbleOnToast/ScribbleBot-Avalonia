@@ -192,5 +192,43 @@ namespace ScribbleBot.Agents.Tools
             }
             return string.Empty;
         }
+
+        private bool IsPathSafe(string requestedPath, string allowedRoot)
+        {
+            if (string.IsNullOrWhiteSpace(requestedPath)) return false;
+
+            try
+            {
+                // 1. Resolve to absolute path (handles "..", "./", symlinks)
+                var resolvedRequested = Path.GetFullPath(requestedPath);
+                var resolvedRoot = Path.GetFullPath(allowedRoot);
+
+                // 2. Normalize separators for comparison
+                resolvedRequested = resolvedRequested.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
+                resolvedRoot = resolvedRoot.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
+
+                // 3. Check containment
+                // Windows: Case-insensitive. Linux/macOS: Case-sensitive.
+                var comparison = OperatingSystem.IsWindows()
+                    ? StringComparison.OrdinalIgnoreCase
+                    : StringComparison.Ordinal;
+
+                // Ensure the requested path starts with the root AND isn't just a prefix match (e.g. C:\Proj vs C:\ProjectX)
+                bool isInside = resolvedRequested.StartsWith(resolvedRoot, comparison);
+
+                if (isInside && resolvedRequested.Length > resolvedRoot.Length)
+                {
+                    // Ensure the character immediately after the root is a separator
+                    char nextChar = resolvedRequested[resolvedRoot.Length];
+                    return nextChar == Path.DirectorySeparatorChar;
+                }
+
+                return false;
+            }
+            catch
+            {
+                return false; // Invalid path format is unsafe by default
+            }
+        }
     }
 }

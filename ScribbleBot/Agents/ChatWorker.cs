@@ -10,7 +10,7 @@ namespace ScribbleBot.Agents
         private readonly IChatClient _chatClient;
         private readonly ContextCompactor _compactor;
         private readonly ToolDispatcher _toolDispatcher;
-        private const int MaxToolIterations = 3;
+        private const int MaxToolIterations = 5;
 
         public string Name { get; set; } = "ChatWorker";
         public string Description { get; set; } = "General chat and information retrieval agent that can answer questions, provide explanations, and perform web searches for up-to-date information.";
